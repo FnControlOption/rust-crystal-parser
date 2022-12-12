@@ -8,7 +8,7 @@ use crate::token::Op::*;
 use crate::token::TokenKind::*;
 use crate::token::*;
 
-type Result<T> = std::result::Result<T, SyntaxError>;
+type Result<'a, T> = std::result::Result<T, SyntaxError<'a>>;
 
 pub struct Lexer<'a> {
     wants_regex: bool,
@@ -21,7 +21,7 @@ pub struct Lexer<'a> {
     wants_def_or_macro_name: bool,
     wants_symbol: bool,
 
-    reader: CharReader,
+    reader: CharReader<'a>,
     token: Token<'a>,
     temp_token: Token<'a>,
     line_number: usize,
@@ -39,10 +39,10 @@ pub struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
-    pub fn new(string: &str) -> Self {
+    pub fn new(string: &'a [char]) -> Self {
         Self {
             // warnings
-            reader: CharReader::new(string.chars().collect()),
+            reader: CharReader::new(string),
             token: Token::default(),
             temp_token: Token::default(),
             line_number: 1,
@@ -69,7 +69,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn next_token(&mut self) -> Result<()> {
+    pub fn next_token(&mut self) -> Result<'a, ()> {
         if matches!(self.token.kind, Newline | Eof) {
             self.comment_is_doc = true;
         } else if self.token.kind != Space {
@@ -270,7 +270,7 @@ impl<'a> Lexer<'a> {
 
         self.skip_comment();
 
-        let mut string = self.string_range(start_pos);
+        let string = self.string_range(start_pos);
 
         match &mut self.token.doc_buffer {
             Some(doc_buffer) => {
@@ -282,7 +282,7 @@ impl<'a> Lexer<'a> {
         }
 
         let doc_buffer = self.token.doc_buffer.as_mut().unwrap();
-        doc_buffer.append(&mut string);
+        doc_buffer.extend_from_slice(string)
     }
 
     fn skip_comment(&mut self) {
@@ -292,7 +292,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn consume_whitespace(&mut self) -> Result<()> {
+    fn consume_whitespace(&mut self) -> Result<'a, ()> {
         let start_pos = self.current_pos();
         self.token.kind = Space;
         self.next_char();
@@ -322,7 +322,7 @@ impl<'a> Lexer<'a> {
         Ok(())
     }
 
-    fn consume_newlines(&mut self) -> Result<()> {
+    fn consume_newlines(&mut self) -> Result<'a, ()> {
         if !self.heredocs.is_empty() {
             return Ok(());
         }
@@ -382,10 +382,15 @@ impl<'a> Lexer<'a> {
     }
 
     fn symbol(&mut self, value: &str) {
+        let start = self.current_pos() - value.len();
+        debug_assert_eq!(
+            Vec::from(self.string_range(start)),
+            Vec::from_iter(value.chars())
+        );
         self.token.kind = Symbol;
-        self.token.value = TokenValue::String(value.to_string().chars().collect());
+        self.token.value = self.string_range(start).into();
         if self.wants_raw {
-            self.token.raw = format!(":{value}").chars().collect();
+            self.token.raw = self.string_range(start - 1);
         }
     }
 
@@ -399,6 +404,12 @@ impl<'a> Lexer<'a> {
 
     fn consume_symbol(&mut self) {
         match self.current_char() {
+            ':' => {
+                self.skip_token_char(Op(ColonColon));
+            }
+            '+' => {
+                self.skip_symbol_char("+");
+            }
             // TODO
             c => {
                 if is_ident_start(c) {
@@ -490,25 +501,25 @@ impl<'a> Lexer<'a> {
         self.token_end_location = None;
     }
 
-    fn next_token_skip_space(&mut self) -> Result<()> {
+    fn next_token_skip_space(&mut self) -> Result<'a, ()> {
         self.next_token()?;
         self.skip_space()?;
         Ok(())
     }
 
-    fn next_token_skip_space_or_newline(&mut self) -> Result<()> {
+    fn next_token_skip_space_or_newline(&mut self) -> Result<'a, ()> {
         self.next_token()?;
         self.skip_space_or_newline()?;
         Ok(())
     }
 
-    fn next_token_skip_statement_end(&mut self) -> Result<()> {
+    fn next_token_skip_statement_end(&mut self) -> Result<'a, ()> {
         self.next_token()?;
         self.skip_statement_end()?;
         Ok(())
     }
 
-    fn next_token_never_a_symbol(&mut self) -> Result<()> {
+    fn next_token_never_a_symbol(&mut self) -> Result<'a, ()> {
         self.wants_symbol = false;
         let result = self.next_token();
         self.wants_symbol = true;
@@ -531,19 +542,11 @@ impl<'a> Lexer<'a> {
         self.reader.set_pos(pos);
     }
 
-    fn string_range(&self, start_pos: usize) -> Vec<char> {
+    fn string_range(&self, start_pos: usize) -> &'a [char] {
         self.string_range2(start_pos, self.current_pos())
     }
 
-    fn string_range2(&self, start_pos: usize, end_pos: usize) -> Vec<char> {
-        self.reader.string()[start_pos..end_pos].to_vec()
-    }
-
-    fn slice_range(&self, start_pos: usize) -> &[char] {
-        self.slice_range2(start_pos, self.current_pos())
-    }
-
-    fn slice_range2(&self, start_pos: usize, end_pos: usize) -> &[char] {
+    fn string_range2(&self, start_pos: usize, end_pos: usize) -> &'a [char] {
         &self.reader.string()[start_pos..end_pos]
     }
 
@@ -558,28 +561,28 @@ impl<'a> Lexer<'a> {
         true
     }
 
-    fn skip_space(&mut self) -> Result<()> {
+    fn skip_space(&mut self) -> Result<'a, ()> {
         while self.token.kind == Space {
             self.next_token()?;
         }
         Ok(())
     }
 
-    fn skip_space_or_newline(&mut self) -> Result<()> {
+    fn skip_space_or_newline(&mut self) -> Result<'a, ()> {
         while matches!(self.token.kind, Space | Newline) {
             self.next_token()?;
         }
         Ok(())
     }
 
-    fn skip_statement_end(&mut self) -> Result<()> {
+    fn skip_statement_end(&mut self) -> Result<'a, ()> {
         while matches!(self.token.kind, Space | Newline | Op(Semicolon)) {
             self.next_token()?;
         }
         Ok(())
     }
 
-    fn handle_slash_r_slash_n_or_slash_n(&mut self) -> Result<bool> {
+    fn handle_slash_r_slash_n_or_slash_n(&mut self) -> Result<'a, bool> {
         let is_slash_r = self.current_char() == '\r';
         if is_slash_r {
             if self.next_char() != '\n' {
@@ -589,12 +592,12 @@ impl<'a> Lexer<'a> {
         Ok(is_slash_r)
     }
 
-    fn unknown_token<T>(&self) -> Result<T> {
+    fn unknown_token<T>(&self) -> Result<'a, T> {
         Err(SyntaxError::new(
             format!("unknown token: {}", self.current_char()),
             self.line_number,
             self.column_number,
-            self.filename.to_string(),
+            self.filename,
             None,
         ))
     }
@@ -605,22 +608,27 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn raise<T>(&self, message: &str) -> Result<T> {
+    fn raise<T>(&self, message: &str) -> Result<'a, T> {
         Err(SyntaxError::new(
             message.to_string(),
             self.line_number,
             self.column_number,
-            self.filename.to_string(),
+            self.filename,
             None,
         ))
     }
 
-    fn raise_at<T>(&self, message: &str, line_number: usize, column_number: usize) -> Result<T> {
+    fn raise_at<T>(
+        &self,
+        message: &str,
+        line_number: usize,
+        column_number: usize,
+    ) -> Result<'a, T> {
         Err(SyntaxError::new(
             message.to_string(),
             line_number,
             column_number,
-            self.filename.to_string(),
+            self.filename,
             None,
         ))
     }
@@ -634,11 +642,11 @@ fn is_ident_part(c: char) -> bool {
     is_ident_start(c) || c.is_ascii_digit()
 }
 
-fn is_ident(name: &Vec<char>) -> bool {
+fn is_ident(name: &[char]) -> bool {
     name.first().map(|c| is_ident_start(*c)).unwrap_or(false)
 }
 
-fn is_setter(name: &Vec<char>) -> bool {
+fn is_setter(name: &[char]) -> bool {
     is_ident(name) && name.last().map(|c| *c == '=').unwrap_or(false)
 }
 
@@ -658,11 +666,24 @@ fn closing_char(c: char) -> char {
 
 #[test]
 fn it_works() {
-    let mut lexer = Lexer::new("foo");
+    fn to_chars(string: &str) -> Vec<char> {
+        string.chars().collect()
+    }
+
+    let string = to_chars("foo");
+    let mut lexer = Lexer::new(&string);
     assert!(lexer.next_token().is_ok());
     assert_eq!("foo", lexer.token.to_string());
 
-    lexer = Lexer::new("123");
+    let string = to_chars("123");
+    let mut lexer = Lexer::new(&string);
     assert!(lexer.next_token().is_ok());
     assert_eq!("123", lexer.token.to_string());
+
+    let string = to_chars(":+");
+    let mut lexer = Lexer::new(&string);
+    lexer.wants_raw = true;
+    assert!(lexer.next_token().is_ok());
+    assert_eq!(Vec::from_iter(":+".chars()), Vec::from(lexer.token.raw));
+    assert_eq!("+", lexer.token.to_string());
 }

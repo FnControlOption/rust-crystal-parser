@@ -1,17 +1,17 @@
-pub struct SyntaxError {
+pub struct SyntaxError<'a> {
     message: String,
     line_number: usize,
     column_number: usize,
-    filename: String,
+    filename: &'a str,
     size: Option<usize>,
 }
 
-impl SyntaxError {
+impl<'a> SyntaxError<'a> {
     pub fn new(
         message: String,
         line_number: usize,
         column_number: usize,
-        filename: String,
+        filename: &'a str,
         size: Option<usize>,
     ) -> Self {
         Self {
@@ -35,8 +35,8 @@ impl SyntaxError {
         self.column_number
     }
 
-    pub fn filename(&self) -> &String {
-        &self.filename
+    pub fn filename(&self) -> &'a str {
+        self.filename
     }
 
     pub fn size(&self) -> Option<usize> {

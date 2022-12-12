@@ -503,32 +503,32 @@ impl Default for DelimiterState {
 }
 
 #[derive(Clone, PartialEq)]
-pub enum TokenValue {
+pub enum TokenValue<'a> {
     Char(char),
-    String(Vec<char>),
+    String(&'a [char]),
     Keyword(Keyword),
     None,
 }
 
-impl From<char> for TokenValue {
+impl From<char> for TokenValue<'_> {
     fn from(c: char) -> Self {
         TokenValue::Char(c)
     }
 }
 
-impl From<Vec<char>> for TokenValue {
-    fn from(string: Vec<char>) -> Self {
+impl<'a> From<&'a [char]> for TokenValue<'a> {
+    fn from(string: &'a [char]) -> Self {
         TokenValue::String(string)
     }
 }
 
-impl From<Keyword> for TokenValue {
+impl From<Keyword> for TokenValue<'_> {
     fn from(keyword: Keyword) -> Self {
         TokenValue::Keyword(keyword)
     }
 }
 
-impl PartialEq<char> for TokenValue {
+impl PartialEq<char> for TokenValue<'_> {
     fn eq(&self, c: &char) -> bool {
         match self {
             TokenValue::Char(value) => value == c,
@@ -537,8 +537,8 @@ impl PartialEq<char> for TokenValue {
     }
 }
 
-impl PartialEq<Vec<char>> for TokenValue {
-    fn eq(&self, string: &Vec<char>) -> bool {
+impl<'a> PartialEq<&'a [char]> for TokenValue<'a> {
+    fn eq(&self, string: &&'a [char]) -> bool {
         match self {
             TokenValue::String(value) => value == string,
             _ => false,
@@ -546,7 +546,7 @@ impl PartialEq<Vec<char>> for TokenValue {
     }
 }
 
-impl PartialEq<Keyword> for TokenValue {
+impl PartialEq<Keyword> for TokenValue<'_> {
     fn eq(&self, keyword: &Keyword) -> bool {
         match self {
             TokenValue::Keyword(value) => value == keyword,
@@ -555,7 +555,7 @@ impl PartialEq<Keyword> for TokenValue {
     }
 }
 
-impl TokenValue {
+impl TokenValue<'_> {
     pub fn is_any_keyword(&self) -> bool {
         match self {
             TokenValue::Keyword(_) => true,
@@ -574,7 +574,7 @@ impl TokenValue {
 #[derive(Clone)]
 pub struct Token<'a> {
     pub kind: TokenKind,
-    pub value: TokenValue,
+    pub value: TokenValue<'a>,
     pub number_kind: NumberKind,
     pub line_number: usize,
     pub column_number: usize,
@@ -583,7 +583,7 @@ pub struct Token<'a> {
     pub macro_state: MacroState,
     pub passed_backslash_newline: bool,
     pub doc_buffer: Option<Vec<char>>,
-    pub raw: Vec<char>,
+    pub raw: &'a [char],
     pub start: usize,
     pub invalid_escape: bool,
     location: Option<Location<'a>>,
@@ -602,7 +602,7 @@ impl<'a> Default for Token<'a> {
             macro_state: MacroState::default(),
             passed_backslash_newline: false,
             doc_buffer: None,
-            raw: Vec::new(),
+            raw: &[],
             start: 0,
             invalid_escape: false,
             location: None,
@@ -640,7 +640,7 @@ impl<'a> fmt::Display for Token<'a> {
         match &self.value {
             TokenValue::Char(c) => c.fmt(f),
             TokenValue::String(string) => {
-                for c in string {
+                for c in string.iter() {
                     c.fmt(f)?;
                 }
                 Ok(())
@@ -653,9 +653,14 @@ impl<'a> fmt::Display for Token<'a> {
 
 #[test]
 fn it_works() {
+    fn to_chars(string: &str) -> Vec<char> {
+        string.chars().collect()
+    }
+
     assert_eq!("as?", Keyword::AsQuestion.to_string());
+    let string = to_chars("foo");
     let token = Token {
-        value: TokenValue::String("foo".chars().collect()),
+        value: TokenValue::String(&string),
         ..Default::default()
     };
     assert_eq!("foo", token.to_string());
