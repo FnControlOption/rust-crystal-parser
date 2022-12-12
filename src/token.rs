@@ -503,32 +503,32 @@ impl Default for DelimiterState {
 }
 
 #[derive(Clone, PartialEq)]
-pub enum TokenValue<'a> {
+pub enum TokenValue {
     Char(char),
-    String(&'a [char]),
+    String(Vec<char>),
     Keyword(Keyword),
     None,
 }
 
-impl From<char> for TokenValue<'_> {
+impl From<char> for TokenValue {
     fn from(c: char) -> Self {
         TokenValue::Char(c)
     }
 }
 
-impl<'a> From<&'a [char]> for TokenValue<'a> {
-    fn from(string: &'a [char]) -> Self {
+impl From<Vec<char>> for TokenValue {
+    fn from(string: Vec<char>) -> Self {
         TokenValue::String(string)
     }
 }
 
-impl From<Keyword> for TokenValue<'_> {
+impl From<Keyword> for TokenValue {
     fn from(keyword: Keyword) -> Self {
         TokenValue::Keyword(keyword)
     }
 }
 
-impl PartialEq<char> for TokenValue<'_> {
+impl PartialEq<char> for TokenValue {
     fn eq(&self, c: &char) -> bool {
         match self {
             TokenValue::Char(value) => value == c,
@@ -537,8 +537,8 @@ impl PartialEq<char> for TokenValue<'_> {
     }
 }
 
-impl<'a> PartialEq<&'a [char]> for TokenValue<'a> {
-    fn eq(&self, string: &&'a [char]) -> bool {
+impl PartialEq<Vec<char>> for TokenValue {
+    fn eq(&self, string: &Vec<char>) -> bool {
         match self {
             TokenValue::String(value) => value == string,
             _ => false,
@@ -546,7 +546,7 @@ impl<'a> PartialEq<&'a [char]> for TokenValue<'a> {
     }
 }
 
-impl PartialEq<Keyword> for TokenValue<'_> {
+impl PartialEq<Keyword> for TokenValue {
     fn eq(&self, keyword: &Keyword) -> bool {
         match self {
             TokenValue::Keyword(value) => value == keyword,
@@ -555,7 +555,7 @@ impl PartialEq<Keyword> for TokenValue<'_> {
     }
 }
 
-impl TokenValue<'_> {
+impl TokenValue {
     pub fn is_any_keyword(&self) -> bool {
         match self {
             TokenValue::Keyword(_) => true,
@@ -574,7 +574,7 @@ impl TokenValue<'_> {
 #[derive(Clone)]
 pub struct Token<'a> {
     pub kind: TokenKind,
-    pub value: TokenValue<'a>,
+    pub value: TokenValue,
     pub number_kind: NumberKind,
     pub line_number: usize,
     pub column_number: usize,
@@ -658,9 +658,8 @@ fn it_works() {
     }
 
     assert_eq!("as?", Keyword::AsQuestion.to_string());
-    let string = to_chars("foo");
     let token = Token {
-        value: TokenValue::String(&string),
+        value: TokenValue::String(to_chars("foo")),
         ..Default::default()
     };
     assert_eq!("foo", token.to_string());

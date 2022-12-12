@@ -127,9 +127,9 @@ impl<'a> Lexer<'a> {
             // TODO
             ':' => {
                 if self.next_char() == ':' {
-                    self.skip_token_char(Op(ColonColon));
+                    self.next_char2(Op(ColonColon));
                 } else if self.wants_symbol {
-                    self.consume_symbol();
+                    self.consume_symbol()?;
                 } else {
                     self.token.kind = Op(Colon);
                 }
@@ -218,6 +218,50 @@ impl<'a> Lexer<'a> {
             '0'..='9' => {
                 self.scan_number(start);
             }
+            '@' => {
+                let start = self.current_pos();
+                match self.next_char() {
+                    '[' => {
+                        self.next_char2(Op(AtLsquare));
+                    }
+                    '@' => {
+                        self.consume_variable(ClassVar, start)?;
+                    }
+                    _ => {
+                        self.consume_variable(InstanceVar, start)?;
+                    }
+                }
+            }
+            '$' => {
+                let start = self.current_pos();
+                self.next_char();
+                match self.current_char() {
+                    '~' => {
+                        self.next_char2(Op(DollarTilde));
+                    }
+                    '?' => {
+                        self.next_char2(Op(DollarQuestion));
+                    }
+                    c if c.is_ascii_digit() => {
+                        let start = self.current_pos();
+                        if self.current_char() == '0' {
+                            self.next_char();
+                        } else {
+                            while self.next_char().is_ascii_digit() {
+                                // Nothing to do
+                            }
+                            if self.current_char() == '?' {
+                                self.next_char();
+                            }
+                        }
+                        self.token.kind = GlobalMatchDataIndex;
+                        self.token.value = self.string_range(start);
+                    }
+                    _ => {
+                        self.consume_variable(Global, start)?;
+                    }
+                }
+            }
             // TODO
             _ => {
                 if self.current_char().is_ascii_uppercase() {
@@ -226,7 +270,7 @@ impl<'a> Lexer<'a> {
                         // Nothing to do
                     }
                     self.token.kind = Const;
-                    self.token.value = self.string_range(start).into();
+                    self.token.value = self.string_range(start);
                 } else if is_ident_start(self.current_char()) {
                     self.next_char();
                     self.scan_ident(start);
@@ -258,7 +302,7 @@ impl<'a> Lexer<'a> {
     fn consume_comment(&mut self, start_pos: usize) {
         self.skip_comment();
         self.token.kind = Comment;
-        self.token.value = self.string_range(start_pos).into();
+        self.token.value = self.string_range(start_pos);
     }
 
     fn consume_doc(&mut self) {
@@ -270,7 +314,7 @@ impl<'a> Lexer<'a> {
 
         self.skip_comment();
 
-        let string = self.string_range(start_pos);
+        let slice = self.slice_range(start_pos);
 
         match &mut self.token.doc_buffer {
             Some(doc_buffer) => {
@@ -282,7 +326,7 @@ impl<'a> Lexer<'a> {
         }
 
         let doc_buffer = self.token.doc_buffer.as_mut().unwrap();
-        doc_buffer.extend_from_slice(string)
+        doc_buffer.extend_from_slice(slice)
     }
 
     fn skip_comment(&mut self) {
@@ -317,7 +361,7 @@ impl<'a> Lexer<'a> {
             }
         }
         if self.count_whitespace {
-            self.token.value = self.string_range(start_pos).into();
+            self.token.value = self.string_range(start_pos);
         }
         Ok(())
     }
@@ -373,10 +417,10 @@ impl<'a> Lexer<'a> {
             self.next_char();
         }
         self.token.kind = Ident;
-        self.token.value = self.string_range(start).into();
+        self.token.value = self.string_range(start);
     }
 
-    fn skip_symbol_char(&mut self, value: &str) {
+    fn next_char_and_symbol(&mut self, value: &str) {
         self.next_char();
         self.symbol(value);
     }
@@ -384,13 +428,13 @@ impl<'a> Lexer<'a> {
     fn symbol(&mut self, value: &str) {
         let start = self.current_pos() - value.len();
         debug_assert_eq!(
-            Vec::from(self.string_range(start)),
+            Vec::from(self.slice_range(start)),
             Vec::from_iter(value.chars())
         );
         self.token.kind = Symbol;
-        self.token.value = self.string_range(start).into();
+        self.token.value = self.string_range(start);
         if self.wants_raw {
-            self.token.raw = self.string_range(start - 1);
+            self.token.raw = self.slice_range(start - 1);
         }
     }
 
@@ -399,37 +443,167 @@ impl<'a> Lexer<'a> {
         while self.next_char().is_ascii_digit() {}
         self.token.kind = Number;
         self.set_token_raw_from_start(start);
-        self.token.value = self.string_range(start).into();
+        self.token.value = self.string_range(start);
     }
 
-    fn consume_symbol(&mut self) {
+    fn consume_symbol(&mut self) -> Result<'a, ()> {
         match self.current_char() {
-            ':' => {
-                self.skip_token_char(Op(ColonColon));
-            }
-            '+' => {
-                self.skip_symbol_char("+");
-            }
-            // TODO
-            c => {
-                if is_ident_start(c) {
-                    let start = self.current_pos();
-                    while is_ident_part(self.next_char()) {
-                        // Nothing to do
-                    }
-                    if self.current_char() == '?'
-                        || (matches!(self.current_char(), '!' | '=')
-                            && self.peek_next_char() != '=')
-                    {
-                        self.next_char();
-                    }
-                    self.token.kind = Symbol;
-                    self.token.value = self.string_range(start).into();
-                    self.set_token_raw_from_start(start - 1);
+            ':' => self.next_char2(Op(ColonColon)),
+            '+' => self.next_char_and_symbol("+"),
+            '-' => self.next_char_and_symbol("-"),
+            '*' => {
+                if self.next_char() == '*' {
+                    self.next_char_and_symbol("**");
                 } else {
-                    self.token.kind = Op(Colon);
+                    self.symbol("*");
                 }
             }
+            '/' => {
+                if self.next_char() == '/' {
+                    self.next_char_and_symbol("//");
+                } else {
+                    self.symbol("/");
+                }
+            }
+            '=' => match self.next_char() {
+                '=' => {
+                    if self.next_char() == '=' {
+                        self.next_char_and_symbol("===");
+                    } else {
+                        self.symbol("==");
+                    }
+                }
+                '~' => self.next_char_and_symbol("=~"),
+                _ => return self.unknown_token(),
+            },
+            '!' => match self.next_char() {
+                '=' => self.next_char_and_symbol("!="),
+                '~' => self.next_char_and_symbol("!~"),
+                _ => self.symbol("!"),
+            },
+            '<' => match self.next_char() {
+                '=' => {
+                    if self.next_char() == '>' {
+                        self.next_char_and_symbol("<=>");
+                    } else {
+                        self.symbol("<=");
+                    }
+                }
+                '<' => self.next_char_and_symbol("<<"),
+                _ => self.symbol("<"),
+            },
+            '>' => match self.next_char() {
+                '=' => self.next_char_and_symbol(">="),
+                '>' => self.next_char_and_symbol(">>"),
+                _ => self.symbol(">"),
+            },
+            '&' => match self.next_char() {
+                '+' => self.next_char_and_symbol("&+"),
+                '-' => self.next_char_and_symbol("&-"),
+                '*' => {
+                    if self.next_char() == '*' {
+                        self.next_char_and_symbol("&**");
+                    } else {
+                        self.symbol("&*");
+                    }
+                }
+                _ => self.symbol("&"),
+            },
+            '|' => self.next_char_and_symbol("|"),
+            '^' => self.next_char_and_symbol("^"),
+            '~' => self.next_char_and_symbol("~"),
+            '%' => self.next_char_and_symbol("%"),
+            '[' => {
+                if self.next_char() == ']' {
+                    match self.next_char() {
+                        '=' => self.next_char_and_symbol("[]="),
+                        '?' => self.next_char_and_symbol("[]?"),
+                        _ => self.symbol("[]"),
+                    }
+                } else {
+                    return self.unknown_token();
+                }
+            }
+            '"' => {
+                let line = self.line_number;
+                let column = self.column_number;
+                let start = self.current_pos() + 1;
+                let mut string = Vec::<char>::new();
+                loop {
+                    match self.next_char() {
+                        '\\' => match self.next_char() {
+                            'a' => string.push(char::from(7)),
+                            'b' => string.push(char::from(8)),
+                            'e' => string.push(char::from(27)),
+                            'f' => string.push(char::from(12)),
+                            'n' => string.push('\n'),
+                            'r' => string.push('\r'),
+                            't' => string.push('\t'),
+                            'v' => string.push(char::from(11)),
+                            'x' => {
+                                // TODO: implement consume_string_hex_escape
+                                return self.unknown_token();
+                            }
+                            'u' => {
+                                // TODO: implement consume_string_unicode_escape
+                                return self.unknown_token();
+                            }
+                            '0'..='7' => {
+                                // TODO: implement consume_octal_escape
+                                return self.unknown_token();
+                            }
+                            '\n' => {
+                                self.incr_line_number_no_column();
+                                string.push('\n');
+                            }
+                            '\0' => {
+                                return self.raise_at("unterminated quoted symbol", line, column);
+                            }
+                            c => string.push(c),
+                        },
+                        '"' => break,
+                        '\0' => return self.raise_at("unterminated quoted symbol", line, column),
+                        c => string.push(c),
+                    }
+                }
+
+                self.token.kind = Symbol;
+                self.token.value = string.into();
+                self.next_char();
+                self.set_token_raw_from_start(start - 2);
+            }
+            c if is_ident_start(c) => {
+                let start = self.current_pos();
+                while is_ident_part(self.next_char()) {
+                    // Nothing to do
+                }
+                if self.current_char() == '?'
+                    || (matches!(self.current_char(), '!' | '=') && self.peek_next_char() != '=')
+                {
+                    self.next_char();
+                }
+                self.token.kind = Symbol;
+                self.token.value = self.string_range(start);
+                self.set_token_raw_from_start(start - 1);
+            }
+            _ => {
+                self.token.kind = Op(Colon);
+            }
+        }
+
+        Ok(())
+    }
+
+    fn consume_variable(&mut self, token_kind: TokenKind, start: usize) -> Result<'a, ()> {
+        if is_ident_start(self.current_char()) {
+            while is_ident_part(self.next_char()) {
+                // Nothing to do
+            }
+            self.token.kind = token_kind;
+            self.token.value = self.string_range(start);
+            Ok(())
+        } else {
+            self.unknown_token()
         }
     }
 
@@ -482,7 +656,7 @@ impl<'a> Lexer<'a> {
         char
     }
 
-    fn skip_token_char(&mut self, token_kind: TokenKind) {
+    fn next_char2(&mut self, token_kind: TokenKind) {
         self.next_char();
         self.token.kind = token_kind;
     }
@@ -542,11 +716,19 @@ impl<'a> Lexer<'a> {
         self.reader.set_pos(pos);
     }
 
-    fn string_range(&self, start_pos: usize) -> &'a [char] {
+    fn string_range(&self, start_pos: usize) -> TokenValue {
         self.string_range2(start_pos, self.current_pos())
     }
 
-    fn string_range2(&self, start_pos: usize, end_pos: usize) -> &'a [char] {
+    fn string_range2(&self, start_pos: usize, end_pos: usize) -> TokenValue {
+        TokenValue::String(self.reader.string()[start_pos..end_pos].to_vec())
+    }
+
+    fn slice_range(&self, start_pos: usize) -> &'a [char] {
+        self.slice_range2(start_pos, self.current_pos())
+    }
+
+    fn slice_range2(&self, start_pos: usize, end_pos: usize) -> &'a [char] {
         &self.reader.string()[start_pos..end_pos]
     }
 
@@ -604,7 +786,7 @@ impl<'a> Lexer<'a> {
 
     fn set_token_raw_from_start(&mut self, start: usize) {
         if self.wants_raw {
-            self.token.raw = self.string_range(start);
+            self.token.raw = self.slice_range(start);
         }
     }
 
@@ -686,4 +868,11 @@ fn it_works() {
     assert!(lexer.next_token().is_ok());
     assert_eq!(Vec::from_iter(":+".chars()), Vec::from(lexer.token.raw));
     assert_eq!("+", lexer.token.to_string());
+
+    let string = to_chars(":[]?");
+    let mut lexer = Lexer::new(&string);
+    lexer.wants_raw = true;
+    assert!(lexer.next_token().is_ok());
+    assert_eq!(Vec::from_iter(":[]?".chars()), Vec::from(lexer.token.raw));
+    assert_eq!("[]?", lexer.token.to_string());
 }
