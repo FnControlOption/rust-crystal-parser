@@ -192,7 +192,128 @@ impl<'a> Lexer<'a> {
                 },
                 _ => self.token.kind = Op(Star),
             },
-            // TODO
+            '/' => match self.next_char() {
+                '/' if self.wants_def_or_macro_name || !self.slash_is_regex => {
+                    match self.next_char() {
+                        '=' => {
+                            self.next_char2(Op(SlashSlashEq));
+                        }
+                        _ => {
+                            self.token.kind = Op(SlashSlash);
+                        }
+                    }
+                }
+                '=' if !self.slash_is_regex => {
+                    self.next_char2(Op(SlashEq));
+                }
+                _ if self.wants_def_or_macro_name => {
+                    self.token.kind = Op(Slash);
+                }
+                _ if self.slash_is_regex => {
+                    self.delimited_pair_no_advance(DelimiterValue::Regex(('/', '/')), start);
+                }
+                c if c.is_ascii_whitespace() || c == '\0' => {
+                    self.token.kind = Op(Slash);
+                }
+                _ if self.wants_regex => {
+                    self.delimited_pair_no_advance(DelimiterValue::Regex(('/', '/')), start);
+                }
+                _ => {
+                    self.token.kind = Op(Slash);
+                }
+            },
+            '%' => {
+                let c = self.next_char();
+                match c {
+                    _ if self.wants_def_or_macro_name => {
+                        self.next_char2(Op(Percent));
+                    }
+                    '=' => {
+                        self.next_char2(Op(PercentEq));
+                    }
+                    '(' | '[' | '{' | '<' | '|' => {
+                        self.delimited_pair(DelimiterValue::String((c, closing_char(c))), start)
+                    }
+                    'i' => {
+                        let c = self.peek_next_char();
+                        if matches!(c, '(' | '{' | '[' | '<' | '|') {
+                            self.next_char();
+                            self.next_char2(SymbolArrayStart);
+                            self.set_token_raw_from_start(start);
+                            self.token.delimiter_state = DelimiterState {
+                                value: DelimiterValue::SymbolArray((c, closing_char(c))),
+                                ..Default::default()
+                            };
+                        } else {
+                            self.token.kind = Op(Percent);
+                        }
+                    }
+                    'q' => {
+                        let c = self.peek_next_char();
+                        if matches!(c, '(' | '{' | '[' | '<' | '|') {
+                            self.next_char();
+                            self.delimited_pair(
+                                DelimiterValue::String((c, closing_char(c))),
+                                start,
+                            );
+                            self.token.delimiter_state.allow_escapes = false;
+                        } else {
+                            self.token.kind = Op(Percent);
+                        }
+                    }
+                    'Q' => {
+                        let c = self.peek_next_char();
+                        if matches!(c, '(' | '{' | '[' | '<' | '|') {
+                            self.next_char();
+                            self.delimited_pair(
+                                DelimiterValue::String((c, closing_char(c))),
+                                start,
+                            );
+                        } else {
+                            self.token.kind = Op(Percent);
+                        }
+                    }
+                    'r' => {
+                        let c = self.next_char();
+                        if matches!(c, '(' | '[' | '{' | '<' | '|') {
+                            self.delimited_pair(DelimiterValue::Regex((c, closing_char(c))), start);
+                        } else {
+                            return self.raise("unknown %r char");
+                        }
+                    }
+                    'x' => {
+                        let c = self.next_char();
+                        if matches!(c, '(' | '[' | '{' | '<' | '|') {
+                            self.delimited_pair(
+                                DelimiterValue::Command((c, closing_char(c))),
+                                start,
+                            );
+                        } else {
+                            return self.raise("unknown %x char");
+                        }
+                    }
+                    'w' => {
+                        let c = self.peek_next_char();
+                        if matches!(c, '(' | '{' | '[' | '<' | '|') {
+                            self.next_char();
+                            self.next_char2(StringArrayStart);
+                            self.set_token_raw_from_start(start);
+                            self.token.delimiter_state = DelimiterState {
+                                value: DelimiterValue::StringArray((c, closing_char(c))),
+                                ..Default::default()
+                            };
+                        } else {
+                            self.token.kind = Op(Percent);
+                        }
+                    }
+                    '}' => {
+                        self.next_char2(Op(PercentRcurly));
+                    }
+                    _ => {
+                        self.token.kind = Op(Percent);
+                    }
+                }
+            }
             '(' => self.next_char2(Op(Lparen)),
             ')' => self.next_char2(Op(Rparen)),
             '{' => match self.next_char() {
@@ -365,7 +486,16 @@ impl<'a> Lexer<'a> {
                 self.next_char();
                 self.set_token_raw_from_start(start);
             }
-            // TODO
+            '`' => {
+                if self.wants_def_or_macro_name {
+                    self.next_char2(Op(Grave));
+                } else {
+                    self.delimited_pair(DelimiterValue::Command(('`', '`')), start);
+                }
+            }
+            '"' => {
+                self.delimited_pair(DelimiterValue::String(('"', '"')), start);
+            }
             '0'..='9' => {
                 self.scan_number(start);
             }
@@ -1108,6 +1238,20 @@ impl<'a> Lexer<'a> {
         self.token.value = self.string_range(start);
     }
 
+    fn delimited_pair(&mut self, value: DelimiterValue, start: usize) {
+        self.next_char();
+        self.delimited_pair_no_advance(value, start);
+    }
+
+    fn delimited_pair_no_advance(&mut self, value: DelimiterValue, start: usize) {
+        self.token.kind = DelimiterStart;
+        self.token.delimiter_state = DelimiterState {
+            value,
+            ..Default::default()
+        };
+        self.set_token_raw_from_start(start);
+    }
+
     fn consume_symbol(&mut self) -> Result<'a, ()> {
         match self.current_char() {
             ':' => self.next_char2(Op(ColonColon)),
@@ -1552,4 +1696,18 @@ fn it_works() {
     assert!(lexer.next_token().is_ok());
     assert_eq!("while", lexer.token.to_string());
     assert_eq!(lexer.token.value, Keyword::While);
+
+    let string = to_unicode("%=");
+    let mut lexer = Lexer::new(&string);
+    lexer.wants_def_or_macro_name = true;
+    assert!(lexer.next_token().is_ok());
+    assert_eq!(Op(Percent), lexer.token.kind);
+    assert_eq!("%", lexer.token.to_string());
+
+    let string = to_unicode("%=");
+    let mut lexer = Lexer::new(&string);
+    lexer.wants_def_or_macro_name = false;
+    assert!(lexer.next_token().is_ok());
+    assert_eq!(Op(PercentEq), lexer.token.kind);
+    assert_eq!("%=", lexer.token.to_string());
 }
