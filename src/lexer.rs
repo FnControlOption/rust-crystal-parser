@@ -78,7 +78,19 @@ impl<'a> Lexer<'a> {
 
         self.reset_token();
 
-        // TODO: Skip comments
+        // Skip comments
+        while self.current_char() == '#' {
+            let start = self.current_pos();
+
+            // TODO: Check #<loc:...> pragma comment
+            if self.doc_enabled && self.comment_is_doc {
+                self.consume_doc();
+            } else if self.comments_enabled {
+                return self.consume_comment(start);
+            } else {
+                self.skip_comment();
+            }
+        }
 
         let start = self.current_pos();
 
@@ -1086,10 +1098,11 @@ impl<'a> Lexer<'a> {
         self.token_end_location.as_ref().unwrap()
     }
 
-    fn consume_comment(&mut self, start_pos: usize) {
+    fn consume_comment(&mut self, start_pos: usize) -> Result<'a, &Token<'a>> {
         self.skip_comment();
         self.token.kind = Comment;
         self.token.value = self.string_range(start_pos);
+        Ok(&self.token)
     }
 
     fn consume_doc(&mut self) {
