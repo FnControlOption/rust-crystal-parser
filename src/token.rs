@@ -653,13 +653,10 @@ impl<'a> fmt::Display for Token<'a> {
 
 #[test]
 fn it_works() {
-    fn to_chars(string: &str) -> Vec<char> {
-        string.chars().collect()
-    }
-
     assert_eq!("as?", Keyword::AsQuestion.to_string());
+
     let token = Token {
-        value: TokenValue::String(to_chars("foo")),
+        value: TokenValue::String("foo".chars().collect()),
         ..Default::default()
     };
     assert_eq!("foo", token.to_string());
