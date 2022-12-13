@@ -69,7 +69,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn next_token(&mut self) -> Result<'a, ()> {
+    pub fn next_token(&mut self) -> Result<'a, &Token<'a>> {
         if matches!(self.token.kind, Newline | Eof) {
             self.comment_is_doc = true;
         } else if self.token.kind != Space {
@@ -413,7 +413,513 @@ impl<'a> Lexer<'a> {
                     }
                 }
             }
-            // TODO
+            'a' => {
+                match self.next_char() {
+                    'b' => {
+                        if self.char_sequence(&['s', 't', 'r', 'a', 'c', 't']) {
+                            return self.check_ident_or_keyword(Keyword::Abstract, start);
+                        }
+                    }
+                    'l' => {
+                        if self.char_sequence(&['i', 'a', 's']) {
+                            return self.check_ident_or_keyword(Keyword::Alias, start);
+                        }
+                    }
+                    's' => match self.peek_next_char() {
+                        'm' => {
+                            self.next_char();
+                            return self.check_ident_or_keyword(Keyword::Asm, start);
+                        }
+                        '?' => {
+                            self.next_char();
+                            self.next_char();
+                            self.token.kind = Ident;
+                            self.token.value = Keyword::AsQuestion.into();
+                            return Ok(&self.token);
+                        }
+                        _ => {
+                            return self.check_ident_or_keyword(Keyword::As, start);
+                        }
+                    },
+                    'n' => {
+                        if self.char_sequence(&['n', 'o', 't', 'a', 't', 'i', 'o', 'n']) {
+                            return self.check_ident_or_keyword(Keyword::Annotation, start);
+                        }
+                    }
+                    _ => {} // scan_ident
+                }
+                self.scan_ident(start);
+            }
+            'b' => {
+                match self.next_char() {
+                    'e' => {
+                        if self.char_sequence(&['g', 'i', 'n']) {
+                            return self.check_ident_or_keyword(Keyword::Begin, start);
+                        }
+                    }
+                    'r' => {
+                        if self.char_sequence(&['e', 'a', 'k']) {
+                            return self.check_ident_or_keyword(Keyword::Break, start);
+                        }
+                    }
+                    _ => {} // scan_ident
+                }
+                self.scan_ident(start);
+            }
+            'c' => {
+                match self.next_char() {
+                    'a' => {
+                        if self.char_sequence(&['s', 'e']) {
+                            return self.check_ident_or_keyword(Keyword::Case, start);
+                        }
+                    }
+                    'l' => {
+                        if self.char_sequence(&['a', 's', 's']) {
+                            return self.check_ident_or_keyword(Keyword::Class, start);
+                        }
+                    }
+                    _ => {} // scan_ident
+                }
+                self.scan_ident(start);
+            }
+            'd' => {
+                match self.next_char() {
+                    'e' => {
+                        if self.next_char() == 'f' {
+                            return self.check_ident_or_keyword(Keyword::Def, start);
+                        }
+                    }
+                    'o' => {
+                        return self.check_ident_or_keyword(Keyword::Do, start);
+                    }
+                    _ => {} // scan_ident
+                }
+                self.scan_ident(start);
+            }
+            'e' => {
+                match self.next_char() {
+                    'l' => match self.next_char() {
+                        's' => match self.next_char() {
+                            'e' => {
+                                return self.check_ident_or_keyword(Keyword::Else, start);
+                            }
+                            'i' => {
+                                if self.next_char() == 'f' {
+                                    return self.check_ident_or_keyword(Keyword::Elsif, start);
+                                }
+                            }
+                            _ => {} // scan_ident
+                        },
+                        _ => {} // scan_ident
+                    },
+                    'n' => match self.next_char() {
+                        'd' => {
+                            return self.check_ident_or_keyword(Keyword::End, start);
+                        }
+                        's' => {
+                            if self.char_sequence(&['u', 'r', 'e']) {
+                                return self.check_ident_or_keyword(Keyword::Ensure, start);
+                            }
+                        }
+                        'u' => {
+                            if self.next_char() == 'm' {
+                                return self.check_ident_or_keyword(Keyword::Enum, start);
+                            }
+                        }
+                        _ => {} // scan_ident
+                    },
+                    'x' => {
+                        if self.char_sequence(&['t', 'e', 'n', 'd']) {
+                            return self.check_ident_or_keyword(Keyword::Extend, start);
+                        }
+                    }
+                    _ => {} // scan_ident
+                }
+                self.scan_ident(start);
+            }
+            'f' => {
+                match self.next_char() {
+                    'a' => {
+                        if self.char_sequence(&['l', 's', 'e']) {
+                            return self.check_ident_or_keyword(Keyword::False, start);
+                        }
+                    }
+                    'o' => {
+                        if self.next_char() == 'r' {
+                            return self.check_ident_or_keyword(Keyword::For, start);
+                        }
+                    }
+                    'u' => {
+                        if self.next_char() == 'n' {
+                            return self.check_ident_or_keyword(Keyword::Fun, start);
+                        }
+                    }
+                    _ => {} // scan_ident
+                }
+                self.scan_ident(start);
+            }
+            'i' => {
+                match self.next_char() {
+                    'f' => {
+                        return self.check_ident_or_keyword(Keyword::If, start);
+                    }
+                    'n' => {
+                        if is_ident_part_or_end(self.peek_next_char()) {
+                            match self.next_char() {
+                                'c' => {
+                                    if self.char_sequence(&['l', 'u', 'd', 'e']) {
+                                        return self
+                                            .check_ident_or_keyword(Keyword::Include, start);
+                                    }
+                                }
+                                's' => {
+                                    if self.char_sequence(&[
+                                        't', 'a', 'n', 'c', 'e', '_', 's', 'i', 'z', 'e', 'o', 'f',
+                                    ]) {
+                                        return self.check_ident_or_keyword(
+                                            Keyword::InstanceSizeof,
+                                            start,
+                                        );
+                                    }
+                                }
+                                _ => {} // scan_ident
+                            }
+                        } else {
+                            self.next_char();
+                            self.token.kind = Ident;
+                            self.token.value = Keyword::In.into();
+                            return Ok(&self.token);
+                        }
+                    }
+                    's' => {
+                        if self.char_sequence(&['_', 'a', '?']) {
+                            return self.check_ident_or_keyword(Keyword::IsAQuestion, start);
+                        }
+                    }
+                    _ => {} // scan_ident
+                }
+                self.scan_ident(start);
+            }
+            'l' => {
+                match self.next_char() {
+                    'i' => {
+                        if self.next_char() == 'b' {
+                            return self.check_ident_or_keyword(Keyword::Lib, start);
+                        }
+                    }
+                    _ => {} // scan_ident
+                }
+                self.scan_ident(start);
+            }
+            'm' => {
+                match self.next_char() {
+                    'a' => {
+                        if self.char_sequence(&['c', 'r', 'o']) {
+                            return self.check_ident_or_keyword(Keyword::Macro, start);
+                        }
+                    }
+                    'o' => match self.next_char() {
+                        'd' => {
+                            if self.char_sequence(&['u', 'l', 'e']) {
+                                return self.check_ident_or_keyword(Keyword::Module, start);
+                            }
+                        }
+                        _ => {} // scan_ident
+                    },
+                    _ => {} // scan_ident
+                }
+                self.scan_ident(start);
+            }
+            'n' => {
+                match self.next_char() {
+                    'e' => {
+                        if self.char_sequence(&['x', 't']) {
+                            return self.check_ident_or_keyword(Keyword::Next, start);
+                        }
+                    }
+                    'i' => match self.next_char() {
+                        'l' => {
+                            if self.peek_next_char() == '?' {
+                                self.next_char();
+                                return self.check_ident_or_keyword(Keyword::NilQuestion, start);
+                            } else {
+                                return self.check_ident_or_keyword(Keyword::Nil, start);
+                            }
+                        }
+                        _ => {} // scan_ident
+                    },
+                    _ => {} // scan_ident
+                }
+                self.scan_ident(start);
+            }
+            'o' => {
+                match self.next_char() {
+                    'f' => {
+                        if self.peek_next_char() == 'f' {
+                            self.next_char();
+                            if self.char_sequence(&['s', 'e', 't', 'o', 'f']) {
+                                return self.check_ident_or_keyword(Keyword::Offsetof, start);
+                            }
+                        } else {
+                            return self.check_ident_or_keyword(Keyword::Of, start);
+                        }
+                    }
+                    'u' => {
+                        if self.next_char() == 't' {
+                            return self.check_ident_or_keyword(Keyword::Out, start);
+                        }
+                    }
+                    _ => {} // scan_ident
+                }
+                self.scan_ident(start);
+            }
+            'p' => {
+                match self.next_char() {
+                    'o' => {
+                        if self.char_sequence(&['i', 'n', 't', 'e', 'r', 'o', 'f']) {
+                            return self.check_ident_or_keyword(Keyword::Pointerof, start);
+                        }
+                    }
+                    'r' => match self.next_char() {
+                        'i' => {
+                            if self.char_sequence(&['v', 'a', 't', 'e']) {
+                                return self.check_ident_or_keyword(Keyword::Private, start);
+                            }
+                        }
+                        'o' => {
+                            if self.char_sequence(&['t', 'e', 'c', 't', 'e', 'd']) {
+                                return self.check_ident_or_keyword(Keyword::Protected, start);
+                            }
+                        }
+                        _ => {} // scan_ident
+                    },
+                    _ => {} // scan_ident
+                }
+                self.scan_ident(start);
+            }
+            'r' => {
+                match self.next_char() {
+                    'e' => match self.next_char() {
+                        's' => match self.next_char() {
+                            'c' => {
+                                if self.char_sequence(&['u', 'e']) {
+                                    return self.check_ident_or_keyword(Keyword::Rescue, start);
+                                }
+                            }
+                            'p' => {
+                                if self.char_sequence(&['o', 'n', 'd', 's', '_', 't', 'o', '?']) {
+                                    return self.check_ident_or_keyword(
+                                        Keyword::RespondsToQuestion,
+                                        start,
+                                    );
+                                }
+                            }
+                            _ => {} // scan_ident
+                        },
+                        't' => {
+                            if self.char_sequence(&['u', 'r', 'n']) {
+                                return self.check_ident_or_keyword(Keyword::Return, start);
+                            }
+                        }
+                        'q' => {
+                            if self.char_sequence(&['u', 'i', 'r', 'e']) {
+                                return self.check_ident_or_keyword(Keyword::Require, start);
+                            }
+                        }
+                        _ => {} // scan_ident
+                    },
+                    _ => {} // scan_ident
+                }
+                self.scan_ident(start);
+            }
+            's' => {
+                match self.next_char() {
+                    'e' => {
+                        if self.next_char() == 'l' {
+                            match self.next_char() {
+                                'e' => {
+                                    if self.char_sequence(&['c', 't']) {
+                                        return self.check_ident_or_keyword(Keyword::Select, start);
+                                    }
+                                }
+                                'f' => {
+                                    return self.check_ident_or_keyword(Keyword::Self_, start);
+                                }
+                                _ => {} // scan_ident
+                            }
+                        }
+                    }
+                    'i' => {
+                        if self.char_sequence(&['z', 'e', 'o', 'f']) {
+                            return self.check_ident_or_keyword(Keyword::Sizeof, start);
+                        }
+                    }
+                    't' => {
+                        if self.char_sequence(&['r', 'u', 'c', 't']) {
+                            return self.check_ident_or_keyword(Keyword::Struct, start);
+                        }
+                    }
+                    'u' => {
+                        if self.char_sequence(&['p', 'e', 'r']) {
+                            return self.check_ident_or_keyword(Keyword::Super, start);
+                        }
+                    }
+                    _ => {} // scan_ident
+                }
+                self.scan_ident(start);
+            }
+            't' => {
+                match self.next_char() {
+                    'h' => {
+                        if self.char_sequence(&['e', 'n']) {
+                            return self.check_ident_or_keyword(Keyword::Then, start);
+                        }
+                    }
+                    'r' => {
+                        if self.char_sequence(&['u', 'e']) {
+                            return self.check_ident_or_keyword(Keyword::True, start);
+                        }
+                    }
+                    'y' => {
+                        if self.char_sequence(&['p', 'e']) {
+                            if self.peek_next_char() == 'o' {
+                                self.next_char();
+                                if self.next_char() == 'f' {
+                                    return self.check_ident_or_keyword(Keyword::Typeof, start);
+                                }
+                            } else {
+                                return self.check_ident_or_keyword(Keyword::Type, start);
+                            }
+                        }
+                    }
+                    _ => {} // scan_ident
+                }
+                self.scan_ident(start);
+            }
+            'u' => {
+                if self.next_char() == 'n' {
+                    match self.next_char() {
+                        'i' => match self.next_char() {
+                            'o' => {
+                                if self.next_char() == 'n' {
+                                    return self.check_ident_or_keyword(Keyword::Union, start);
+                                }
+                            }
+                            'n' => {
+                                if self
+                                    .char_sequence(&['i', 't', 'i', 'a', 'l', 'i', 'z', 'e', 'd'])
+                                {
+                                    return self
+                                        .check_ident_or_keyword(Keyword::Uninitialized, start);
+                                }
+                            }
+                            _ => {} // scan_ident
+                        },
+                        'l' => {
+                            if self.char_sequence(&['e', 's', 's']) {
+                                return self.check_ident_or_keyword(Keyword::Unless, start);
+                            }
+                        }
+                        't' => {
+                            if self.char_sequence(&['i', 'l']) {
+                                return self.check_ident_or_keyword(Keyword::Until, start);
+                            }
+                        }
+                        _ => {} // scan_ident
+                    }
+                }
+                self.scan_ident(start);
+            }
+            'v' => {
+                if self.char_sequence(&['e', 'r', 'b', 'a', 't', 'i', 'm']) {
+                    return self.check_ident_or_keyword(Keyword::Verbatim, start);
+                }
+                self.scan_ident(start);
+            }
+            'w' => {
+                match self.next_char() {
+                    'h' => match self.next_char() {
+                        'e' => {
+                            if self.next_char() == 'n' {
+                                return self.check_ident_or_keyword(Keyword::When, start);
+                            }
+                        }
+                        'i' => {
+                            if self.char_sequence(&['l', 'e']) {
+                                return self.check_ident_or_keyword(Keyword::While, start);
+                            }
+                        }
+                        _ => {} // scan_ident
+                    },
+                    'i' => {
+                        if self.char_sequence(&['t', 'h']) {
+                            return self.check_ident_or_keyword(Keyword::With, start);
+                        }
+                    }
+                    _ => {} // scan_ident
+                }
+                self.scan_ident(start);
+            }
+            'y' => {
+                if self.char_sequence(&['i', 'e', 'l', 'd']) {
+                    return self.check_ident_or_keyword(Keyword::Yield, start);
+                }
+                self.scan_ident(start);
+            }
+            '_' => {
+                match self.next_char() {
+                    '_' => {
+                        match self.next_char() {
+                            'D' => {
+                                if self.char_sequence(&['I', 'R', '_', '_']) {
+                                    if !is_ident_part_or_end(self.peek_next_char()) {
+                                        self.next_char();
+                                        self.token.kind = Magic(Dir);
+                                        return Ok(&self.token);
+                                    }
+                                }
+                            }
+                            'E' => {
+                                if self
+                                    .char_sequence(&['N', 'D', '_', 'L', 'I', 'N', 'E', '_', '_'])
+                                {
+                                    if !is_ident_part_or_end(self.peek_next_char()) {
+                                        self.next_char();
+                                        self.token.kind = Magic(EndLine);
+                                        return Ok(&self.token);
+                                    }
+                                }
+                            }
+                            'F' => {
+                                if self.char_sequence(&['I', 'L', 'E', '_', '_']) {
+                                    if !is_ident_part_or_end(self.peek_next_char()) {
+                                        self.next_char();
+                                        self.token.kind = Magic(File);
+                                        return Ok(&self.token);
+                                    }
+                                }
+                            }
+                            'L' => {
+                                if self.char_sequence(&['I', 'N', 'E', '_', '_']) {
+                                    if !is_ident_part_or_end(self.peek_next_char()) {
+                                        self.next_char();
+                                        self.token.kind = Magic(Line);
+                                        return Ok(&self.token);
+                                    }
+                                }
+                            }
+                            _ => {} // scan_ident
+                        }
+                    }
+                    _ => {
+                        if !is_ident_part(self.current_char()) {
+                            self.token.kind = Underscore;
+                            return Ok(&self.token);
+                        }
+                    }
+                }
+                self.scan_ident(start);
+            }
             _ => {
                 if self.current_char().is_ascii_uppercase() {
                     let start = self.current_pos();
@@ -436,7 +942,7 @@ impl<'a> Lexer<'a> {
             self.slash_is_regex = false;
         }
 
-        Ok(())
+        Ok(&self.token)
     }
 
     fn token_end_location(&mut self) -> &Location {
@@ -550,7 +1056,7 @@ impl<'a> Lexer<'a> {
         Ok(())
     }
 
-    fn check_ident_or_keyword(&mut self, keyword: Keyword, start: usize) {
+    fn check_ident_or_keyword(&mut self, keyword: Keyword, start: usize) -> Result<'a, &Token<'a>> {
         if is_ident_part_or_end(self.peek_next_char()) {
             self.scan_ident(start);
         } else {
@@ -558,6 +1064,7 @@ impl<'a> Lexer<'a> {
             self.token.kind = Ident;
             self.token.value = keyword.into();
         }
+        Ok(&self.token)
     }
 
     fn scan_ident(&mut self, start: usize) {
@@ -848,11 +1355,11 @@ impl<'a> Lexer<'a> {
         Ok(())
     }
 
-    fn next_token_never_a_symbol(&mut self) -> Result<'a, ()> {
+    fn next_token_never_a_symbol(&mut self) -> Result<'a, &Token<'a>> {
         self.wants_symbol = false;
-        let result = self.next_token();
+        self.next_token()?;
         self.wants_symbol = true;
-        result
+        Ok(&self.token)
     }
 
     fn current_char(&self) -> char {
@@ -929,6 +1436,15 @@ impl<'a> Lexer<'a> {
         Ok(is_slash_r)
     }
 
+    fn char_sequence(&mut self, tokens: &[char]) -> bool {
+        for token in tokens.iter() {
+            if *token != self.next_char() {
+                return false;
+            }
+        }
+        true
+    }
+
     fn unknown_token<T>(&self) -> Result<'a, T> {
         Err(SyntaxError::new(
             format!("unknown token: {}", self.current_char()),
@@ -1003,31 +1519,37 @@ fn closing_char(c: char) -> char {
 
 #[test]
 fn it_works() {
-    fn to_chars(string: &str) -> Vec<char> {
+    fn to_unicode(string: &str) -> Vec<char> {
         string.chars().collect()
     }
 
-    let string = to_chars("foo");
+    let string = to_unicode("foo");
     let mut lexer = Lexer::new(&string);
     assert!(lexer.next_token().is_ok());
     assert_eq!("foo", lexer.token.to_string());
 
-    let string = to_chars("123");
+    let string = to_unicode("123");
     let mut lexer = Lexer::new(&string);
     assert!(lexer.next_token().is_ok());
     assert_eq!("123", lexer.token.to_string());
 
-    let string = to_chars(":+");
+    let string = to_unicode(":+");
     let mut lexer = Lexer::new(&string);
     lexer.wants_raw = true;
     assert!(lexer.next_token().is_ok());
     assert_eq!(Vec::from_iter(":+".chars()), Vec::from(lexer.token.raw));
     assert_eq!("+", lexer.token.to_string());
 
-    let string = to_chars(":[]?");
+    let string = to_unicode(":[]?");
     let mut lexer = Lexer::new(&string);
     lexer.wants_raw = true;
     assert!(lexer.next_token().is_ok());
     assert_eq!(Vec::from_iter(":[]?".chars()), Vec::from(lexer.token.raw));
     assert_eq!("[]?", lexer.token.to_string());
+
+    let string = to_unicode("while");
+    let mut lexer = Lexer::new(&string);
+    assert!(lexer.next_token().is_ok());
+    assert_eq!("while", lexer.token.to_string());
+    assert_eq!(lexer.token.value, Keyword::While);
 }

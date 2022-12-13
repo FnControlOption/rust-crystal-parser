@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Location<'a> {
     line_number: usize,
     column_number: usize,

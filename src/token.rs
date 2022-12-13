@@ -2,7 +2,7 @@ use crate::ast::NumberKind;
 use crate::location::Location;
 use std::fmt;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Keyword {
     Abstract,
     Alias,
@@ -137,7 +137,7 @@ impl fmt::Display for Keyword {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum TokenKind {
     Eof,
     Space,
@@ -235,7 +235,7 @@ impl TokenKind {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Magic {
     Dir,
     EndLine,
@@ -258,7 +258,7 @@ impl fmt::Display for Magic {
     }
 }
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Op {
     Bang,                   // !
     BangEq,                 // !=
@@ -446,7 +446,7 @@ impl Op {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MacroState {
     pub whitespace: bool,
     pub nest: usize,
@@ -473,7 +473,7 @@ impl Default for MacroState {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum DelimiterValue {
     String((char, char)),
     Regex((char, char)),
@@ -483,7 +483,7 @@ pub enum DelimiterValue {
     Heredoc(String),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct DelimiterState {
     pub value: DelimiterValue,
     pub open_count: usize,
@@ -502,7 +502,7 @@ impl Default for DelimiterState {
     }
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TokenValue {
     Char(char),
     String(Vec<char>),
@@ -571,7 +571,7 @@ impl TokenValue {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Token<'a> {
     pub kind: TokenKind,
     pub value: TokenValue,

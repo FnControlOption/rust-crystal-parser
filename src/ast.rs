@@ -1,6 +1,6 @@
 use std::fmt;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum NumberKind {
     I8,
     I16,
