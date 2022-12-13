@@ -124,7 +124,98 @@ impl<'a> Lexer<'a> {
                     return self.raise("expected '\\n' after '\\r'");
                 }
             }
+            '=' => match self.next_char() {
+                '=' => match self.next_char() {
+                    '=' => self.next_char2(Op(EqEqEq)),
+                    _ => self.token.kind = Op(EqEq),
+                },
+                '>' => self.next_char2(Op(EqGt)),
+                '~' => self.next_char2(Op(EqTilde)),
+                _ => self.token.kind = Op(Eq),
+            },
+            '!' => match self.next_char() {
+                '=' => self.next_char2(Op(BangEq)),
+                '~' => self.next_char2(Op(BangTilde)),
+                _ => self.token.kind = Op(Bang),
+            },
+            '<' => {
+                match self.next_char() {
+                    '=' => match self.next_char() {
+                        '>' => self.next_char2(Op(LtEqGt)),
+                        _ => self.token.kind = Op(LtEq),
+                    },
+                    '<' => {
+                        match self.next_char() {
+                            '=' => self.next_char2(Op(LtLtEq)),
+                            '-' => {
+                                // TODO: implement consume_heredoc_start
+                                return self.unknown_token();
+                            }
+                            _ => self.token.kind = Op(LtLt),
+                        }
+                    }
+                    _ => self.token.kind = Op(Lt),
+                }
+            }
+            '>' => match self.next_char() {
+                '=' => self.next_char2(Op(GtEq)),
+                '>' => match self.next_char() {
+                    '=' => self.next_char2(Op(GtGtEq)),
+                    _ => self.token.kind = Op(GtGt),
+                },
+                _ => self.token.kind = Op(Gt),
+            },
+            '+' => {
+                self.token.start = start;
+                match self.next_char() {
+                    '=' => self.next_char2(Op(PlusEq)),
+                    '0'..='9' => self.scan_number(start),
+                    '+' => return self.raise("postfix increment is not supported, use `exp += 1`"),
+                    _ => self.token.kind = Op(Plus),
+                }
+            }
+            '-' => {
+                self.token.start = start;
+                match self.next_char() {
+                    '=' => self.next_char2(Op(MinusEq)),
+                    '>' => self.next_char2(Op(MinusGt)),
+                    '0'..='9' => self.scan_number2(start, true),
+                    '+' => return self.raise("postfix decrement is not supported, use `exp -= 1`"),
+                    _ => self.token.kind = Op(Minus),
+                }
+            }
+            '*' => match self.next_char() {
+                '=' => self.next_char2(Op(StarEq)),
+                '*' => match self.next_char() {
+                    '=' => self.next_char2(Op(StarStarEq)),
+                    _ => self.token.kind = Op(StarStar),
+                },
+                _ => self.token.kind = Op(Star),
+            },
             // TODO
+            '(' => self.next_char2(Op(Lparen)),
+            ')' => self.next_char2(Op(Rparen)),
+            '{' => match self.next_char() {
+                '%' => self.next_char2(Op(LcurlyPercent)),
+                '{' => self.next_char2(Op(LcurlyLcurly)),
+                _ => self.token.kind = Op(Lcurly),
+            },
+            '}' => self.next_char2(Op(Rcurly)),
+            '[' => match self.next_char() {
+                ']' => match self.next_char() {
+                    '=' => self.next_char2(Op(LsquareRsquareEq)),
+                    '?' => self.next_char2(Op(LsquareRsquareQuestion)),
+                    _ => self.token.kind = Op(LsquareRsquare),
+                },
+                _ => self.token.kind = Op(Lsquare),
+            },
+            ']' => self.next_char2(Op(Rsquare)),
+            ',' => self.next_char2(Op(Comma)),
+            '?' => self.next_char2(Op(Question)),
+            ';' => {
+                reset_regex_flags = false;
+                self.next_char2(Op(Semicolon));
+            }
             ':' => {
                 if self.next_char() == ':' {
                     self.next_char2(Op(ColonColon));
@@ -134,7 +225,67 @@ impl<'a> Lexer<'a> {
                     self.token.kind = Op(Colon);
                 }
             }
-            // TODO
+            '~' => self.next_char2(Op(Tilde)),
+            '.' => {
+                let line = self.line_number;
+                let column = self.column_number;
+                match self.next_char() {
+                    '.' => match self.next_char() {
+                        '.' => self.next_char2(Op(PeriodPeriodPeriod)),
+                        _ => self.token.kind = Op(PeriodPeriod),
+                    },
+                    c if c.is_ascii_digit() => {
+                        return self.raise_at(
+                            ".1 style number literal is not supported, put 0 before dot",
+                            line,
+                            column,
+                        )
+                    }
+                    _ => self.token.kind = Op(Period),
+                }
+            }
+            '&' => match self.next_char() {
+                '&' => match self.next_char() {
+                    '=' => self.next_char2(Op(AmpAmpEq)),
+                    _ => self.token.kind = Op(AmpAmp),
+                },
+                '=' => self.next_char2(Op(AmpEq)),
+                '+' => match self.next_char() {
+                    '=' => self.next_char2(Op(AmpPlusEq)),
+                    _ => self.token.kind = Op(AmpPlus),
+                },
+                '-' => {
+                    // Check if '>' comes after '&-', making it '&->'.
+                    // We want to parse that like '&(->...)',
+                    // so we only return '&' for now.
+                    if self.peek_next_char() == '>' {
+                        self.token.kind = Op(Amp);
+                    } else {
+                        match self.next_char() {
+                            '=' => self.next_char2(Op(AmpMinusEq)),
+                            _ => self.token.kind = Op(AmpMinus),
+                        }
+                    }
+                }
+                '*' => match self.next_char() {
+                    '*' => self.next_char2(Op(AmpStarStar)),
+                    '=' => self.next_char2(Op(AmpStarEq)),
+                    _ => self.token.kind = Op(AmpStar),
+                },
+                _ => self.token.kind = Op(Amp),
+            },
+            '|' => match self.next_char() {
+                '|' => match self.next_char() {
+                    '=' => self.next_char2(Op(BarBarEq)),
+                    _ => self.token.kind = Op(BarBar),
+                },
+                '=' => self.next_char2(Op(BarEq)),
+                _ => self.token.kind = Op(Bar),
+            },
+            '^' => match self.next_char() {
+                '=' => self.next_char2(Op(CaretEq)),
+                _ => self.token.kind = Op(Caret),
+            },
             '\'' => {
                 let start = self.current_pos();
                 let line = self.line_number;
@@ -439,6 +590,10 @@ impl<'a> Lexer<'a> {
     }
 
     fn scan_number(&mut self, start: usize) {
+        self.scan_number2(start, false);
+    }
+
+    fn scan_number2(&mut self, start: usize, _negative: bool) {
         // TODO: implement
         while self.next_char().is_ascii_digit() {}
         self.token.kind = Number;
