@@ -7,8 +7,9 @@ use crate::token::Magic::*;
 use crate::token::Op::*;
 use crate::token::TokenKind::*;
 use crate::token::*;
+use std::string::String;
 
-pub struct Lexer<'a, 'b> {
+pub struct Lexer<'s, 'f> {
     wants_regex: bool,
     doc_enabled: bool,
     comment_is_doc: bool,
@@ -19,25 +20,25 @@ pub struct Lexer<'a, 'b> {
     wants_def_or_macro_name: bool,
     wants_symbol: bool,
 
-    reader: CharReader<'a>,
-    token: Token<'a, 'b>,
-    temp_token: Token<'a, 'b>,
+    reader: CharReader<'s>,
+    token: Token<'s, 'f>,
+    temp_token: Token<'s, 'f>,
     line_number: usize,
     column_number: usize,
-    filename: &'b str,
+    filename: &'f str,
     stacked: bool,
-    stacked_filename: &'b str,
+    stacked_filename: &'f str,
     stacked_line_number: usize,
     stacked_column_number: usize,
-    token_end_location: Option<Location<'b>>,
+    token_end_location: Option<Location<'f>>,
     // string_pool
     heredocs: Vec<DelimiterState>,
     // macro_expansion_pragmas
     // warnings
 }
 
-impl<'a, 'b> Lexer<'a, 'b> {
-    pub fn new(string: &'a [char]) -> Self {
+impl<'s, 'f> Lexer<'s, 'f> {
+    pub fn new(string: &'s [char]) -> Self {
         Self {
             // warnings
             reader: CharReader::new(string),
@@ -67,7 +68,11 @@ impl<'a, 'b> Lexer<'a, 'b> {
         }
     }
 
-    pub fn next_token(&mut self) -> Result<'b, &Token<'a, 'b>> {
+    pub fn token(&self) -> &Token<'s, 'f> {
+        &self.token
+    }
+
+    pub fn next_token(&mut self) -> Result<'f, &Token<'s, 'f>> {
         if matches!(self.token.kind, Newline | Eof) {
             self.comment_is_doc = true;
         } else if self.token.kind != Space {
@@ -1096,7 +1101,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
         self.token_end_location.as_ref().unwrap()
     }
 
-    fn consume_comment(&mut self, start_pos: usize) -> Result<'b, &Token<'a, 'b>> {
+    fn consume_comment(&mut self, start_pos: usize) -> Result<'f, &Token<'s, 'f>> {
         self.skip_comment();
         self.token.kind = Comment;
         self.token.value = self.string_range(start_pos);
@@ -1134,7 +1139,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
         }
     }
 
-    fn consume_whitespace(&mut self) -> Result<'b, ()> {
+    fn consume_whitespace(&mut self) -> Result<'f, ()> {
         let start_pos = self.current_pos();
         self.token.kind = Space;
         self.next_char();
@@ -1164,7 +1169,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
         Ok(())
     }
 
-    fn consume_newlines(&mut self) -> Result<'b, ()> {
+    fn consume_newlines(&mut self) -> Result<'f, ()> {
         if !self.heredocs.is_empty() {
             return Ok(());
         }
@@ -1201,7 +1206,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
         &mut self,
         keyword: Keyword,
         start: usize,
-    ) -> Result<'b, &Token<'a, 'b>> {
+    ) -> Result<'f, &Token<'s, 'f>> {
         if is_ident_part_or_end(self.peek_next_char()) {
             self.scan_ident(start);
         } else {
@@ -1267,7 +1272,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
         self.set_token_raw_from_start(start);
     }
 
-    fn consume_symbol(&mut self) -> Result<'b, ()> {
+    fn consume_symbol(&mut self) -> Result<'f, ()> {
         match self.current_char() {
             ':' => self.next_char2(Op(ColonColon)),
             '+' => self.next_char_and_symbol("+"),
@@ -1415,7 +1420,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
         Ok(())
     }
 
-    fn consume_variable(&mut self, token_kind: TokenKind, start: usize) -> Result<'b, ()> {
+    fn consume_variable(&mut self, token_kind: TokenKind, start: usize) -> Result<'f, ()> {
         if is_ident_start(self.current_char()) {
             while is_ident_part(self.next_char()) {
                 // Nothing to do
@@ -1496,25 +1501,25 @@ impl<'a, 'b> Lexer<'a, 'b> {
         self.token_end_location = None;
     }
 
-    pub fn next_token_skip_space(&mut self) -> Result<'b, ()> {
+    pub fn next_token_skip_space(&mut self) -> Result<'f, ()> {
         self.next_token()?;
         self.skip_space()?;
         Ok(())
     }
 
-    pub fn next_token_skip_space_or_newline(&mut self) -> Result<'b, ()> {
+    pub fn next_token_skip_space_or_newline(&mut self) -> Result<'f, ()> {
         self.next_token()?;
         self.skip_space_or_newline()?;
         Ok(())
     }
 
-    pub fn next_token_skip_statement_end(&mut self) -> Result<'b, ()> {
+    pub fn next_token_skip_statement_end(&mut self) -> Result<'f, ()> {
         self.next_token()?;
         self.skip_statement_end()?;
         Ok(())
     }
 
-    pub fn next_token_never_a_symbol(&mut self) -> Result<'b, &Token<'a, 'b>> {
+    pub fn next_token_never_a_symbol(&mut self) -> Result<'f, &Token<'s, 'f>> {
         self.wants_symbol = false;
         self.next_token()?;
         self.wants_symbol = true;
@@ -1545,11 +1550,11 @@ impl<'a, 'b> Lexer<'a, 'b> {
         TokenValue::String(self.reader.string()[start_pos..end_pos].to_vec())
     }
 
-    fn slice_range(&self, start_pos: usize) -> &'a [char] {
+    fn slice_range(&self, start_pos: usize) -> &'s [char] {
         self.slice_range2(start_pos, self.current_pos())
     }
 
-    fn slice_range2(&self, start_pos: usize, end_pos: usize) -> &'a [char] {
+    fn slice_range2(&self, start_pos: usize, end_pos: usize) -> &'s [char] {
         &self.reader.string()[start_pos..end_pos]
     }
 
@@ -1564,28 +1569,28 @@ impl<'a, 'b> Lexer<'a, 'b> {
         true
     }
 
-    pub fn skip_space(&mut self) -> Result<'b, ()> {
+    pub fn skip_space(&mut self) -> Result<'f, ()> {
         while self.token.kind == Space {
             self.next_token()?;
         }
         Ok(())
     }
 
-    pub fn skip_space_or_newline(&mut self) -> Result<'b, ()> {
+    pub fn skip_space_or_newline(&mut self) -> Result<'f, ()> {
         while matches!(self.token.kind, Space | Newline) {
             self.next_token()?;
         }
         Ok(())
     }
 
-    pub fn skip_statement_end(&mut self) -> Result<'b, ()> {
+    pub fn skip_statement_end(&mut self) -> Result<'f, ()> {
         while matches!(self.token.kind, Space | Newline | Op(Semicolon)) {
             self.next_token()?;
         }
         Ok(())
     }
 
-    fn handle_slash_r_slash_n_or_slash_n(&mut self) -> Result<'b, bool> {
+    fn handle_slash_r_slash_n_or_slash_n(&mut self) -> Result<'f, bool> {
         let is_slash_r = self.current_char() == '\r';
         if is_slash_r {
             if self.next_char() != '\n' {
@@ -1596,7 +1601,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
     }
 
     fn char_sequence(&mut self, tokens: &[char]) -> bool {
-        for token in tokens.iter() {
+        for token in tokens {
             if *token != self.next_char() {
                 return false;
             }
@@ -1604,7 +1609,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
         true
     }
 
-    fn unknown_token<T>(&self) -> Result<'b, T> {
+    fn unknown_token<T>(&self) -> Result<'f, T> {
         Err(SyntaxError::new(
             format!("unknown token: {}", self.current_char()),
             self.line_number,
@@ -1620,7 +1625,7 @@ impl<'a, 'b> Lexer<'a, 'b> {
         }
     }
 
-    fn raise<T>(&self, message: &str) -> Result<'b, T> {
+    pub fn raise<T>(&self, message: &str) -> Result<'f, T> {
         Err(SyntaxError::new(
             message.to_string(),
             self.line_number,
@@ -1630,17 +1635,37 @@ impl<'a, 'b> Lexer<'a, 'b> {
         ))
     }
 
-    fn raise_at<T>(
+    pub fn raise_at<T>(
         &self,
         message: &str,
         line_number: usize,
         column_number: usize,
-    ) -> Result<'b, T> {
+    ) -> Result<'f, T> {
         Err(SyntaxError::new(
             message.to_string(),
             line_number,
             column_number,
             self.filename,
+            None,
+        ))
+    }
+
+    pub fn raise_for<T>(&self, message: String, token: &Token<'s, 'f>) -> Result<'f, T> {
+        Err(SyntaxError::new(
+            message,
+            token.line_number,
+            token.column_number,
+            token.filename,
+            None,
+        ))
+    }
+
+    pub fn raise_loc<T>(&self, message: String, location: &Location<'f>) -> Result<'f, T> {
+        Err(SyntaxError::new(
+            message,
+            location.line_number(),
+            location.column_number(),
+            location.filename(),
             None,
         ))
     }

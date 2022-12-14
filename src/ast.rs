@@ -1,31 +1,127 @@
 use crate::location::Location;
 use std::{fmt, rc::Rc};
 
-pub type AstNodeBox<'a> = Box<dyn AstNode<'a> + 'a>;
+pub type AstNodeBox<'f> = Box<dyn AstNode<'f> + 'f>;
 
-pub trait AstNode<'a> {
-    fn location(&self) -> Option<Rc<Location<'a>>>;
-    fn set_location(&mut self, location: Option<Rc<Location<'a>>>);
+pub trait AstNode<'f> {
+    fn location(&self) -> Option<Rc<Location<'f>>>;
+    fn set_location(&mut self, location: Option<Rc<Location<'f>>>);
 
-    fn end_location(&self) -> Option<Rc<Location<'a>>>;
-    fn set_end_location(&mut self, end_location: Option<Rc<Location<'a>>>);
+    fn end_location(&self) -> Option<Rc<Location<'f>>>;
+    fn set_end_location(&mut self, end_location: Option<Rc<Location<'f>>>);
 
-    fn at(&mut self, location: Location<'a>) {
+    fn at(&mut self, location: Location<'f>) {
         self.set_location(Some(Rc::new(location)));
     }
 
-    fn copy_location(&mut self, node: AstNodeBox<'a>) {
+    fn copy_location(&mut self, node: AstNodeBox<'f>) {
         self.set_location(node.location());
         self.set_end_location(node.end_location());
     }
 
-    fn at_end(&mut self, end_location: Location<'a>) {
+    fn at_end(&mut self, end_location: Location<'f>) {
         self.set_end_location(Some(Rc::new(end_location)));
     }
 
-    fn copy_end_location(&mut self, node: AstNodeBox<'a>) {
+    fn copy_end_location(&mut self, node: AstNodeBox<'f>) {
         self.set_end_location(node.end_location());
     }
+}
+
+pub enum AstNodeEnum<'f> {
+    Nop(Box<Nop<'f>>),
+    Expressions(Box<Expressions<'f>>),
+    NilLiteral(Box<NilLiteral<'f>>),
+    BoolLiteral(Box<BoolLiteral<'f>>),
+    NumberLiteral(Box<NumberLiteral<'f>>),
+    CharLiteral(Box<CharLiteral<'f>>),
+    StringLiteral(Box<StringLiteral<'f>>),
+    StringInterpolation(Box<StringInterpolation<'f>>),
+    SymbolLiteral(Box<SymbolLiteral<'f>>),
+    ArrayLiteral(Box<ArrayLiteral<'f>>),
+    HashLiteral(Box<HashLiteral<'f>>),
+    NamedTupleLiteral(Box<NamedTupleLiteral<'f>>),
+    RangeLiteral(Box<RangeLiteral<'f>>),
+    RegexLiteral(Box<RegexLiteral<'f>>),
+    TupleLiteral(Box<TupleLiteral<'f>>),
+    Var(Box<Var<'f>>),
+    Block(Box<Block<'f>>),
+    Call(Box<Call<'f>>),
+    NamedArgument(Box<NamedArgument<'f>>),
+    // If(Box<If<'f>>),
+    // Unless(Box<Unless<'f>>),
+    // Assign(Box<Assign<'f>>),
+    // OpAssign(Box<OpAssign<'f>>),
+    // MultiAssign(Box<MultiAssign<'f>>),
+    // InstanceVar(Box<InstanceVar<'f>>),
+    // ReadInstanceVar(Box<ReadInstanceVar<'f>>),
+    // ClassVar(Box<ClassVar<'f>>),
+    // Global(Box<Global<'f>>),
+    // And(Box<And<'f>>),
+    // Or(Box<Or<'f>>),
+    // Arg(Box<Arg<'f>>),
+    // ProcNotation(Box<ProcNotation<'f>>),
+    // Def(Box<Def<'f>>),
+    // Macro(Box<Macro<'f>>),
+    // Not(Box<Not<'f>>),
+    // PointerOf(Box<PointerOf<'f>>),
+    // SizeOf(Box<SizeOf<'f>>),
+    // InstanceSizeOf(Box<InstanceSizeOf<'f>>),
+    // Out(Box<Out<'f>>),
+    // OffsetOf(Box<OffsetOf<'f>>),
+    // VisibilityModifier(Box<VisibilityModifier<'f>>),
+    // IsA(Box<IsA<'f>>),
+    // RespondsTo(Box<RespondsTo<'f>>),
+    // Require(Box<Require<'f>>),
+    // When(Box<When<'f>>),
+    // Case(Box<Case<'f>>),
+    // Select(Box<Select<'f>>),
+    // ImplicitObj(Box<ImplicitObj<'f>>),
+    // Path(Box<Path<'f>>),
+    // ClassDef(Box<ClassDef<'f>>),
+    // ModuleDef(Box<ModuleDef<'f>>),
+    // AnnotationDef(Box<AnnotationDef<'f>>),
+    // While(Box<While<'f>>),
+    // Until(Box<Until<'f>>),
+    // Generic(Box<Generic<'f>>),
+    // TypeDeclaration(Box<TypeDeclaration<'f>>),
+    // UninitializedVar(Box<UninitializedVar<'f>>),
+    // Rescue(Box<Rescue<'f>>),
+    // ExceptionHandler(Box<ExceptionHandler<'f>>),
+    // ProcLiteral(Box<ProcLiteral<'f>>),
+    // ProcPointer(Box<ProcPointer<'f>>),
+    // Union(Box<Union<'f>>),
+    // Self_(Box<Self_<'f>>),
+    // Return(Box<Return<'f>>),
+    // Break(Box<Break<'f>>),
+    // Next(Box<Next<'f>>),
+    // Yield(Box<Yield<'f>>),
+    // Include(Box<Include<'f>>),
+    // Extend(Box<Extend<'f>>),
+    // LibDef(Box<LibDef<'f>>),
+    // FunDef(Box<FunDef<'f>>),
+    // TypeDef(Box<TypeDef<'f>>),
+    // CStructOrUnionDef(Box<CStructOrUnionDef<'f>>),
+    // EnumDef(Box<EnumDef<'f>>),
+    // ExternalVar(Box<ExternalVar<'f>>),
+    // Alias(Box<Alias<'f>>),
+    // Metaclass(Box<Metaclass<'f>>),
+    // Cast(Box<Cast<'f>>),
+    // NilableCast(Box<NilableCast<'f>>),
+    // TypeOf(Box<TypeOf<'f>>),
+    // Annotation(Box<Annotation<'f>>),
+    // MacroExpression(Box<MacroExpression<'f>>),
+    // MacroLiteral(Box<MacroLiteral<'f>>),
+    // MacroVerbatim(Box<MacroVerbatim<'f>>),
+    // MacroIf(Box<MacroIf<'f>>),
+    // MacroFor(Box<MacroFor<'f>>),
+    // MacroVar(Box<MacroVar<'f>>),
+    // Underscore(Box<Underscore<'f>>),
+    // Splat(Box<Splat<'f>>),
+    // DoubleSplat(Box<DoubleSplat<'f>>),
+    // MagicConstant(Box<MagicConstant<'f>>),
+    // Asm(Box<Asm<'f>>),
+    // AsmOperand(Box<AsmOperand<'f>>),
 }
 
 macro_rules! Node {
@@ -34,37 +130,43 @@ macro_rules! Node {
     };
 
     ($name:ident; $(pub $field:ident: $typ:ty,)*) => {
-        pub struct $name<'a> {
-            location: Option<Rc<Location<'a>>>,
-            end_location: Option<Rc<Location<'a>>>,
+        pub struct $name<'f> {
+            location: Option<Rc<Location<'f>>>,
+            end_location: Option<Rc<Location<'f>>>,
             $(pub $field: $typ),*
         }
 
-        impl<'a> AstNode<'a> for $name<'a> {
-            fn location(&self) -> Option<Rc<Location<'a>>> {
+        impl<'f> AstNode<'f> for $name<'f> {
+            fn location(&self) -> Option<Rc<Location<'f>>> {
                 self.location.clone()
             }
 
-            fn set_location(&mut self, location: Option<Rc<Location<'a>>>) {
+            fn set_location(&mut self, location: Option<Rc<Location<'f>>>) {
                 self.location = location;
             }
 
-            fn end_location(&self) -> Option<Rc<Location<'a>>> {
+            fn end_location(&self) -> Option<Rc<Location<'f>>> {
                 self.end_location.clone()
             }
 
-            fn set_end_location(&mut self, end_location: Option<Rc<Location<'a>>>) {
+            fn set_end_location(&mut self, end_location: Option<Rc<Location<'f>>>) {
                 self.end_location = end_location;
             }
         }
 
-        impl<'a> $name<'a> {
+        impl<'f> $name<'f> {
             pub fn new($($field: $typ),*) -> Box<Self> {
                 Box::new(Self {
                     location: None,
                     end_location: None,
                     $($field),*
                 })
+            }
+        }
+
+        impl<'f> From<Box<$name<'f>>> for AstNodeEnum<'f> {
+            fn from(node: Box<$name<'f>>) -> Self {
+                AstNodeEnum::$name(node)
             }
         }
     };
@@ -81,32 +183,32 @@ pub enum ExpressionsKeyword {
 
 Node!(
     Expressions;
-    pub expressions: Vec<AstNodeBox<'a>>,
+    pub expressions: Vec<AstNodeBox<'f>>,
     pub keyword: ExpressionsKeyword,
 );
 
-impl<'a> Expressions<'a> {
+impl<'f> Expressions<'f> {
     pub fn default() -> Box<Self> {
         Self::new(vec![], ExpressionsKeyword::None)
     }
 
-    pub fn from<T>(obj: T) -> AstNodeBox<'a>
+    pub fn from<T>(obj: T) -> AstNodeBox<'f>
     where
-        T: IntoExpressions<'a>,
+        T: IntoExpressions<'f>,
     {
         obj.into()
     }
 }
 
-pub trait IntoExpressions<'a> {
-    fn into(self) -> AstNodeBox<'a>;
+pub trait IntoExpressions<'f> {
+    fn into(self) -> AstNodeBox<'f>;
 }
 
-impl<'a, T> IntoExpressions<'a> for Option<T>
+impl<'f, T> IntoExpressions<'f> for Option<T>
 where
-    T: IntoExpressions<'a>,
+    T: IntoExpressions<'f>,
 {
-    fn into(self) -> AstNodeBox<'a> {
+    fn into(self) -> AstNodeBox<'f> {
         if let Some(obj) = self {
             obj.into()
         } else {
@@ -115,8 +217,8 @@ where
     }
 }
 
-impl<'a> IntoExpressions<'a> for Vec<AstNodeBox<'a>> {
-    fn into(mut self) -> AstNodeBox<'a> {
+impl<'f> IntoExpressions<'f> for Vec<AstNodeBox<'f>> {
+    fn into(mut self) -> AstNodeBox<'f> {
         match self.len() {
             0 => Nop::new(),
             1 => self.swap_remove(0), // TODO: why doesn't self[0] work?
@@ -125,8 +227,8 @@ impl<'a> IntoExpressions<'a> for Vec<AstNodeBox<'a>> {
     }
 }
 
-impl<'a> IntoExpressions<'a> for AstNodeBox<'a> {
-    fn into(self) -> AstNodeBox<'a> {
+impl<'f> IntoExpressions<'f> for AstNodeBox<'f> {
+    fn into(self) -> AstNodeBox<'f> {
         self
     }
 }
@@ -315,7 +417,7 @@ Node!(
 
 Node!(
     StringInterpolation;
-    pub expressions: Vec<AstNodeBox<'a>>,
+    pub expressions: Vec<AstNodeBox<'f>>,
     pub heredoc_indent: usize,
 );
 
@@ -326,49 +428,49 @@ Node!(
 
 Node!(
     ArrayLiteral;
-    pub elements: Vec<AstNodeBox<'a>>,
-    pub of: Option<AstNodeBox<'a>>,
-    pub name: Option<AstNodeBox<'a>>,
+    pub elements: Vec<AstNodeBox<'f>>,
+    pub of: Option<AstNodeBox<'f>>,
+    pub name: Option<AstNodeBox<'f>>,
 );
 
 Node!(
     HashLiteral;
-    pub elements: Vec<HashLiteralEntry<'a>>,
-    pub of: Option<HashLiteralEntry<'a>>,
-    pub name: Option<AstNodeBox<'a>>,
+    pub elements: Vec<HashLiteralEntry<'f>>,
+    pub of: Option<HashLiteralEntry<'f>>,
+    pub name: Option<AstNodeBox<'f>>,
 );
 
-pub struct HashLiteralEntry<'a> {
-    pub key: AstNodeBox<'a>,
-    pub value: AstNodeBox<'a>,
+pub struct HashLiteralEntry<'f> {
+    pub key: AstNodeBox<'f>,
+    pub value: AstNodeBox<'f>,
 }
 
 Node!(
     NamedTupleLiteral;
-    pub entries: Vec<NamedTupleLiteralEntry<'a>>,
+    pub entries: Vec<NamedTupleLiteralEntry<'f>>,
 );
 
-pub struct NamedTupleLiteralEntry<'a> {
+pub struct NamedTupleLiteralEntry<'f> {
     pub key: Vec<char>,
-    pub value: AstNodeBox<'a>,
+    pub value: AstNodeBox<'f>,
 }
 
 Node!(
     RangeLiteral;
-    pub from: AstNodeBox<'a>,
-    pub to: AstNodeBox<'a>,
+    pub from: AstNodeBox<'f>,
+    pub to: AstNodeBox<'f>,
     pub exclusive: bool,
 );
 
 Node!(
     RegexLiteral;
-    pub value: AstNodeBox<'a>,
+    pub value: AstNodeBox<'f>,
     // options
 );
 
 Node!(
     TupleLiteral;
-    pub elements: Vec<AstNodeBox<'a>>,
+    pub elements: Vec<AstNodeBox<'f>>,
 );
 
 Node!(
@@ -378,21 +480,21 @@ Node!(
 
 Node!(
     Block;
-    pub args: Vec<Box<Var<'a>>>,
-    pub body: AstNodeBox<'a>,
-    pub call: Option<Box<Call<'a>>>,
+    pub args: Vec<Box<Var<'f>>>,
+    pub body: AstNodeBox<'f>,
+    pub call: Option<Box<Call<'f>>>,
     pub splat_index: Option<usize>,
 );
 
 Node!(
     Call;
-    pub obj: Option<AstNodeBox<'a>>,
+    pub obj: Option<AstNodeBox<'f>>,
     pub name: Vec<char>,
-    pub args: Vec<AstNodeBox<'a>>,
-    pub block: Option<Box<Block<'a>>>,
-    pub block_arg: Option<AstNodeBox<'a>>,
-    pub named_args: Option<Vec<Box<NamedArgument<'a>>>>,
-    pub name_location: Option<Location<'a>>,
+    pub args: Vec<AstNodeBox<'f>>,
+    pub block: Option<Box<Block<'f>>>,
+    pub block_arg: Option<AstNodeBox<'f>>,
+    pub named_args: Option<Vec<Box<NamedArgument<'f>>>>,
+    pub name_location: Option<Location<'f>>,
     // name_size
     pub doc: Option<Vec<char>>,
     pub visibility: Visibility,
@@ -404,7 +506,7 @@ Node!(
 Node!(
     NamedArgument;
     pub name: Vec<char>,
-    pub value: AstNodeBox<'a>,
+    pub value: AstNodeBox<'f>,
 );
 
 #[derive(Clone, Copy, Debug, PartialEq)]

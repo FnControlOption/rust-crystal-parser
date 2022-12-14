@@ -571,25 +571,36 @@ impl TokenValue {
     }
 }
 
+impl fmt::Display for TokenValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TokenValue::Char(c) => c.fmt(f),
+            TokenValue::String(string) => write!(f, "{}", String::from_iter(string)),
+            TokenValue::Keyword(keyword) => keyword.fmt(f),
+            TokenValue::None => write!(f, ""),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
-pub struct Token<'a, 'b> {
+pub struct Token<'s, 'f> {
     pub kind: TokenKind,
     pub value: TokenValue,
     pub number_kind: NumberKind,
     pub line_number: usize,
     pub column_number: usize,
-    pub filename: &'b str,
+    pub filename: &'f str,
     pub delimiter_state: DelimiterState,
     pub macro_state: MacroState,
     pub passed_backslash_newline: bool,
     pub doc_buffer: Option<Vec<char>>,
-    pub raw: &'a [char],
+    pub raw: &'s [char],
     pub start: usize,
     pub invalid_escape: bool,
-    location: Option<Location<'b>>,
+    location: Option<Location<'f>>,
 }
 
-impl<'a, 'b> Default for Token<'a, 'b> {
+impl<'s, 'f> Default for Token<'s, 'f> {
     fn default() -> Self {
         Self {
             kind: TokenKind::Eof,
@@ -610,7 +621,7 @@ impl<'a, 'b> Default for Token<'a, 'b> {
     }
 }
 
-impl<'a, 'b> Token<'a, 'b> {
+impl<'s, 'f> Token<'s, 'f> {
     pub fn location(&mut self) -> &Location {
         if self.location.is_none() {
             self.location = Some(Location::new(
@@ -622,7 +633,7 @@ impl<'a, 'b> Token<'a, 'b> {
         self.location.as_ref().unwrap()
     }
 
-    pub fn set_location(&mut self, location: Option<Location<'b>>) {
+    pub fn set_location(&mut self, location: Option<Location<'f>>) {
         self.location = location;
     }
 
@@ -635,18 +646,12 @@ impl<'a, 'b> Token<'a, 'b> {
     }
 }
 
-impl<'a, 'b> fmt::Display for Token<'a, 'b> {
+impl<'s, 'f> fmt::Display for Token<'s, 'f> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match &self.value {
-            TokenValue::Char(c) => c.fmt(f),
-            TokenValue::String(string) => {
-                for c in string.iter() {
-                    c.fmt(f)?;
-                }
-                Ok(())
-            }
-            TokenValue::Keyword(keyword) => keyword.fmt(f),
-            TokenValue::None => self.kind.fmt(f),
+        if self.value.is_none() {
+            self.kind.fmt(f)
+        } else {
+            self.value.fmt(f)
         }
     }
 }

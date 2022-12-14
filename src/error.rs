@@ -1,19 +1,19 @@
-pub type Result<'a, T> = std::result::Result<T, SyntaxError<'a>>;
+pub type Result<'f, T> = std::result::Result<T, SyntaxError<'f>>;
 
-pub struct SyntaxError<'a> {
+pub struct SyntaxError<'f> {
     message: String,
     line_number: usize,
     column_number: usize,
-    filename: &'a str,
+    filename: &'f str,
     size: Option<usize>,
 }
 
-impl<'a> SyntaxError<'a> {
+impl<'f> SyntaxError<'f> {
     pub fn new(
         message: String,
         line_number: usize,
         column_number: usize,
-        filename: &'a str,
+        filename: &'f str,
         size: Option<usize>,
     ) -> Self {
         Self {
@@ -37,7 +37,7 @@ impl<'a> SyntaxError<'a> {
         self.column_number
     }
 
-    pub fn filename(&self) -> &'a str {
+    pub fn filename(&self) -> &'f str {
         self.filename
     }
 

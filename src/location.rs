@@ -1,14 +1,14 @@
 use std::fmt;
 
 #[derive(Clone, Debug)]
-pub struct Location<'a> {
+pub struct Location<'f> {
     line_number: usize,
     column_number: usize,
-    filename: &'a str,
+    filename: &'f str,
 }
 
-impl<'a> Location<'a> {
-    pub fn new(filename: &'a str, line_number: usize, column_number: usize) -> Self {
+impl<'f> Location<'f> {
+    pub fn new(filename: &'f str, line_number: usize, column_number: usize) -> Self {
         Self {
             filename,
             line_number,
@@ -24,12 +24,12 @@ impl<'a> Location<'a> {
         self.column_number
     }
 
-    pub fn filename(&self) -> &'a str {
+    pub fn filename(&self) -> &'f str {
         self.filename
     }
 }
 
-impl<'a> fmt::Display for Location<'a> {
+impl<'f> fmt::Display for Location<'f> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,

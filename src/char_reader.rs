@@ -1,12 +1,12 @@
-pub struct CharReader<'a> {
-    string: &'a [char],
+pub struct CharReader<'s> {
+    string: &'s [char],
     current_char: char,
     pos: usize,
     end: bool,
 }
 
-impl<'a> CharReader<'a> {
-    pub fn new(string: &'a [char]) -> Self {
+impl<'s> CharReader<'s> {
+    pub fn new(string: &'s [char]) -> Self {
         let mut reader = Self {
             string,
             pos: 0,
@@ -17,7 +17,7 @@ impl<'a> CharReader<'a> {
         reader
     }
 
-    pub fn string(&self) -> &'a [char] {
+    pub fn string(&self) -> &'s [char] {
         self.string
     }
 
