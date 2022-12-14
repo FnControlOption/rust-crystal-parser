@@ -572,13 +572,13 @@ impl TokenValue {
 }
 
 #[derive(Clone, Debug)]
-pub struct Token<'a> {
+pub struct Token<'a, 'b> {
     pub kind: TokenKind,
     pub value: TokenValue,
     pub number_kind: NumberKind,
     pub line_number: usize,
     pub column_number: usize,
-    pub filename: &'a str,
+    pub filename: &'b str,
     pub delimiter_state: DelimiterState,
     pub macro_state: MacroState,
     pub passed_backslash_newline: bool,
@@ -586,10 +586,10 @@ pub struct Token<'a> {
     pub raw: &'a [char],
     pub start: usize,
     pub invalid_escape: bool,
-    location: Option<Location<'a>>,
+    location: Option<Location<'b>>,
 }
 
-impl<'a> Default for Token<'a> {
+impl<'a, 'b> Default for Token<'a, 'b> {
     fn default() -> Self {
         Self {
             kind: TokenKind::Eof,
@@ -610,7 +610,7 @@ impl<'a> Default for Token<'a> {
     }
 }
 
-impl<'a> Token<'a> {
+impl<'a, 'b> Token<'a, 'b> {
     pub fn location(&mut self) -> &Location {
         if self.location.is_none() {
             self.location = Some(Location::new(
@@ -622,7 +622,7 @@ impl<'a> Token<'a> {
         self.location.as_ref().unwrap()
     }
 
-    pub fn set_location(&mut self, location: Option<Location<'a>>) {
+    pub fn set_location(&mut self, location: Option<Location<'b>>) {
         self.location = location;
     }
 
@@ -635,7 +635,7 @@ impl<'a> Token<'a> {
     }
 }
 
-impl<'a> fmt::Display for Token<'a> {
+impl<'a, 'b> fmt::Display for Token<'a, 'b> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match &self.value {
             TokenValue::Char(c) => c.fmt(f),

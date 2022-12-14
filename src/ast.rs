@@ -1,4 +1,142 @@
-use std::fmt;
+use crate::location::Location;
+use std::{fmt, rc::Rc};
+
+pub trait ASTNode<'a> {
+    fn location(&self) -> Option<Rc<Location<'a>>>;
+    fn set_location(&mut self, location: Option<Rc<Location<'a>>>);
+
+    fn end_location(&self) -> Option<Rc<Location<'a>>>;
+    fn set_end_location(&mut self, end_location: Option<Rc<Location<'a>>>);
+
+    fn at(&mut self, location: Location<'a>) {
+        self.set_location(Some(Rc::new(location)));
+    }
+
+    fn copy_location(&mut self, node: Box<dyn ASTNode<'a>>) {
+        self.set_location(node.location());
+        self.set_end_location(node.end_location());
+    }
+
+    fn at_end(&mut self, end_location: Location<'a>) {
+        self.set_end_location(Some(Rc::new(end_location)));
+    }
+
+    fn copy_end_location(&mut self, node: Box<dyn ASTNode<'a>>) {
+        self.set_end_location(node.end_location());
+    }
+}
+
+macro_rules! ASTNode {
+    ($name:ident) => {
+        ASTNode!($name;);
+    };
+
+    ($name:ident; $(pub $field:ident: $typ:ty,)*) => {
+        pub struct $name<'a> {
+            location: Option<Rc<Location<'a>>>,
+            end_location: Option<Rc<Location<'a>>>,
+            $(pub $field: $typ),*
+        }
+
+        impl<'a> ASTNode<'a> for $name<'a> {
+            fn location(&self) -> Option<Rc<Location<'a>>> {
+                self.location.clone()
+            }
+
+            fn set_location(&mut self, location: Option<Rc<Location<'a>>>) {
+                self.location = location;
+            }
+
+            fn end_location(&self) -> Option<Rc<Location<'a>>> {
+                self.end_location.clone()
+            }
+
+            fn set_end_location(&mut self, end_location: Option<Rc<Location<'a>>>) {
+                self.end_location = end_location;
+            }
+        }
+
+        impl<'a> $name<'a> {
+            pub fn new($($field: $typ),*) -> Box<Self> {
+                Box::new(Self {
+                    location: None,
+                    end_location: None,
+                    $($field),*
+                })
+            }
+        }
+    };
+}
+
+ASTNode!(Nop);
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum ExpressionsKeyword {
+    None,
+    Paren,
+    Begin,
+}
+
+ASTNode!(
+    Expressions;
+    pub expressions: Vec<Box<dyn ASTNode<'a>>>,
+    pub keyword: ExpressionsKeyword,
+);
+
+impl<'a> Expressions<'a> {
+    pub fn default() -> Box<Self> {
+        Self::new(vec![], ExpressionsKeyword::None)
+    }
+
+    pub fn from<T>(obj: T) -> Box<dyn ASTNode<'a>>
+    where
+        T: IntoExpressions<'a>,
+    {
+        obj.into()
+    }
+}
+
+pub trait IntoExpressions<'a> {
+    fn into(self) -> Box<dyn ASTNode<'a>>;
+}
+
+// impl<'a, T> IntoExpressions<'a> for Option<T>
+// where
+//     T: IntoExpressions<'a>,
+// {
+//     fn into(self) -> Box<dyn ASTNode<'a>> {
+//         if let Some(obj) = self {
+//             obj.into()
+//         } else {
+//             Nop::new()
+//         }
+//     }
+// }
+
+// impl<'a> IntoExpressions<'a> for Vec<Box<dyn ASTNode<'a>>> {
+//     fn into(self) -> Box<dyn ASTNode<'a>> {
+//         // Expressions::new(self, ExpressionsKeyword::None)
+//         // Nop::<'a>::new()
+//         // match self.len() {
+//         //     0 => Nop::new(),
+//         //     1 => self[0],
+//         //     _ => Expressions::new(self, ExpressionsKeyword::None),
+//         // }
+//     }
+// }
+
+impl<'a> IntoExpressions<'a> for Box<dyn ASTNode<'a>> {
+    fn into(self) -> Box<dyn ASTNode<'a>> {
+        self
+    }
+}
+
+ASTNode!(
+    RangeLiteral;
+    pub from: Box<dyn ASTNode<'a>>,
+    pub to: Box<dyn ASTNode<'a>>,
+    pub exclusive: bool,
+);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum NumberKind {
@@ -157,4 +295,16 @@ impl From<f64> for NumberKind {
     fn from(_: f64) -> Self {
         NumberKind::F64
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Visibility {
+    Public,
+    Protected,
+    Private,
+}
+
+#[test]
+fn it_works() {
+    RangeLiteral::new(Nop::new(), Nop::new(), false);
 }

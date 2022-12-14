@@ -1,4 +1,4 @@
-#![allow(dead_code, unused_imports)]
+#![allow(dead_code)]
 
 use crate::char_reader::CharReader;
 use crate::error::SyntaxError;
@@ -8,9 +8,9 @@ use crate::token::Op::*;
 use crate::token::TokenKind::*;
 use crate::token::*;
 
-type Result<'a, T> = std::result::Result<T, SyntaxError<'a>>;
+type Result<'b, T> = std::result::Result<T, SyntaxError<'b>>;
 
-pub struct Lexer<'a> {
+pub struct Lexer<'a, 'b> {
     wants_regex: bool,
     doc_enabled: bool,
     comment_is_doc: bool,
@@ -22,23 +22,23 @@ pub struct Lexer<'a> {
     wants_symbol: bool,
 
     reader: CharReader<'a>,
-    token: Token<'a>,
-    temp_token: Token<'a>,
+    token: Token<'a, 'b>,
+    temp_token: Token<'a, 'b>,
     line_number: usize,
     column_number: usize,
-    filename: &'a str,
+    filename: &'b str,
     stacked: bool,
-    stacked_filename: &'a str,
+    stacked_filename: &'b str,
     stacked_line_number: usize,
     stacked_column_number: usize,
-    token_end_location: Option<Location<'a>>,
+    token_end_location: Option<Location<'b>>,
     // string_pool
     heredocs: Vec<DelimiterState>,
     // macro_expansion_pragmas
     // warnings
 }
 
-impl<'a> Lexer<'a> {
+impl<'a, 'b> Lexer<'a, 'b> {
     pub fn new(string: &'a [char]) -> Self {
         Self {
             // warnings
@@ -69,7 +69,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    pub fn next_token(&mut self) -> Result<'a, &Token<'a>> {
+    pub fn next_token(&mut self) -> Result<'b, &Token<'a, 'b>> {
         if matches!(self.token.kind, Newline | Eof) {
             self.comment_is_doc = true;
         } else if self.token.kind != Space {
@@ -1098,7 +1098,7 @@ impl<'a> Lexer<'a> {
         self.token_end_location.as_ref().unwrap()
     }
 
-    fn consume_comment(&mut self, start_pos: usize) -> Result<'a, &Token<'a>> {
+    fn consume_comment(&mut self, start_pos: usize) -> Result<'b, &Token<'a, 'b>> {
         self.skip_comment();
         self.token.kind = Comment;
         self.token.value = self.string_range(start_pos);
@@ -1136,7 +1136,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn consume_whitespace(&mut self) -> Result<'a, ()> {
+    fn consume_whitespace(&mut self) -> Result<'b, ()> {
         let start_pos = self.current_pos();
         self.token.kind = Space;
         self.next_char();
@@ -1166,7 +1166,7 @@ impl<'a> Lexer<'a> {
         Ok(())
     }
 
-    fn consume_newlines(&mut self) -> Result<'a, ()> {
+    fn consume_newlines(&mut self) -> Result<'b, ()> {
         if !self.heredocs.is_empty() {
             return Ok(());
         }
@@ -1199,7 +1199,11 @@ impl<'a> Lexer<'a> {
         Ok(())
     }
 
-    fn check_ident_or_keyword(&mut self, keyword: Keyword, start: usize) -> Result<'a, &Token<'a>> {
+    fn check_ident_or_keyword(
+        &mut self,
+        keyword: Keyword,
+        start: usize,
+    ) -> Result<'b, &Token<'a, 'b>> {
         if is_ident_part_or_end(self.peek_next_char()) {
             self.scan_ident(start);
         } else {
@@ -1265,7 +1269,7 @@ impl<'a> Lexer<'a> {
         self.set_token_raw_from_start(start);
     }
 
-    fn consume_symbol(&mut self) -> Result<'a, ()> {
+    fn consume_symbol(&mut self) -> Result<'b, ()> {
         match self.current_char() {
             ':' => self.next_char2(Op(ColonColon)),
             '+' => self.next_char_and_symbol("+"),
@@ -1413,7 +1417,7 @@ impl<'a> Lexer<'a> {
         Ok(())
     }
 
-    fn consume_variable(&mut self, token_kind: TokenKind, start: usize) -> Result<'a, ()> {
+    fn consume_variable(&mut self, token_kind: TokenKind, start: usize) -> Result<'b, ()> {
         if is_ident_start(self.current_char()) {
             while is_ident_part(self.next_char()) {
                 // Nothing to do
@@ -1494,25 +1498,25 @@ impl<'a> Lexer<'a> {
         self.token_end_location = None;
     }
 
-    fn next_token_skip_space(&mut self) -> Result<'a, ()> {
+    fn next_token_skip_space(&mut self) -> Result<'b, ()> {
         self.next_token()?;
         self.skip_space()?;
         Ok(())
     }
 
-    fn next_token_skip_space_or_newline(&mut self) -> Result<'a, ()> {
+    fn next_token_skip_space_or_newline(&mut self) -> Result<'b, ()> {
         self.next_token()?;
         self.skip_space_or_newline()?;
         Ok(())
     }
 
-    fn next_token_skip_statement_end(&mut self) -> Result<'a, ()> {
+    fn next_token_skip_statement_end(&mut self) -> Result<'b, ()> {
         self.next_token()?;
         self.skip_statement_end()?;
         Ok(())
     }
 
-    fn next_token_never_a_symbol(&mut self) -> Result<'a, &Token<'a>> {
+    fn next_token_never_a_symbol(&mut self) -> Result<'b, &Token<'a, 'b>> {
         self.wants_symbol = false;
         self.next_token()?;
         self.wants_symbol = true;
@@ -1562,28 +1566,28 @@ impl<'a> Lexer<'a> {
         true
     }
 
-    fn skip_space(&mut self) -> Result<'a, ()> {
+    fn skip_space(&mut self) -> Result<'b, ()> {
         while self.token.kind == Space {
             self.next_token()?;
         }
         Ok(())
     }
 
-    fn skip_space_or_newline(&mut self) -> Result<'a, ()> {
+    fn skip_space_or_newline(&mut self) -> Result<'b, ()> {
         while matches!(self.token.kind, Space | Newline) {
             self.next_token()?;
         }
         Ok(())
     }
 
-    fn skip_statement_end(&mut self) -> Result<'a, ()> {
+    fn skip_statement_end(&mut self) -> Result<'b, ()> {
         while matches!(self.token.kind, Space | Newline | Op(Semicolon)) {
             self.next_token()?;
         }
         Ok(())
     }
 
-    fn handle_slash_r_slash_n_or_slash_n(&mut self) -> Result<'a, bool> {
+    fn handle_slash_r_slash_n_or_slash_n(&mut self) -> Result<'b, bool> {
         let is_slash_r = self.current_char() == '\r';
         if is_slash_r {
             if self.next_char() != '\n' {
@@ -1602,7 +1606,7 @@ impl<'a> Lexer<'a> {
         true
     }
 
-    fn unknown_token<T>(&self) -> Result<'a, T> {
+    fn unknown_token<T>(&self) -> Result<'b, T> {
         Err(SyntaxError::new(
             format!("unknown token: {}", self.current_char()),
             self.line_number,
@@ -1618,7 +1622,7 @@ impl<'a> Lexer<'a> {
         }
     }
 
-    fn raise<T>(&self, message: &str) -> Result<'a, T> {
+    fn raise<T>(&self, message: &str) -> Result<'b, T> {
         Err(SyntaxError::new(
             message.to_string(),
             self.line_number,
@@ -1633,7 +1637,7 @@ impl<'a> Lexer<'a> {
         message: &str,
         line_number: usize,
         column_number: usize,
-    ) -> Result<'a, T> {
+    ) -> Result<'b, T> {
         Err(SyntaxError::new(
             message.to_string(),
             line_number,
