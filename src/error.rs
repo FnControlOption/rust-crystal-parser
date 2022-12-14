@@ -1,3 +1,5 @@
+pub type Result<'a, T> = std::result::Result<T, SyntaxError<'a>>;
+
 pub struct SyntaxError<'a> {
     message: String,
     line_number: usize,

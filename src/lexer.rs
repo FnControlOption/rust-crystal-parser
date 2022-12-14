@@ -1,14 +1,12 @@
 #![allow(dead_code)]
 
 use crate::char_reader::CharReader;
-use crate::error::SyntaxError;
+use crate::error::{Result, SyntaxError};
 use crate::location::Location;
 use crate::token::Magic::*;
 use crate::token::Op::*;
 use crate::token::TokenKind::*;
 use crate::token::*;
-
-type Result<'b, T> = std::result::Result<T, SyntaxError<'b>>;
 
 pub struct Lexer<'a, 'b> {
     wants_regex: bool,
@@ -1498,44 +1496,44 @@ impl<'a, 'b> Lexer<'a, 'b> {
         self.token_end_location = None;
     }
 
-    fn next_token_skip_space(&mut self) -> Result<'b, ()> {
+    pub fn next_token_skip_space(&mut self) -> Result<'b, ()> {
         self.next_token()?;
         self.skip_space()?;
         Ok(())
     }
 
-    fn next_token_skip_space_or_newline(&mut self) -> Result<'b, ()> {
+    pub fn next_token_skip_space_or_newline(&mut self) -> Result<'b, ()> {
         self.next_token()?;
         self.skip_space_or_newline()?;
         Ok(())
     }
 
-    fn next_token_skip_statement_end(&mut self) -> Result<'b, ()> {
+    pub fn next_token_skip_statement_end(&mut self) -> Result<'b, ()> {
         self.next_token()?;
         self.skip_statement_end()?;
         Ok(())
     }
 
-    fn next_token_never_a_symbol(&mut self) -> Result<'b, &Token<'a, 'b>> {
+    pub fn next_token_never_a_symbol(&mut self) -> Result<'b, &Token<'a, 'b>> {
         self.wants_symbol = false;
         self.next_token()?;
         self.wants_symbol = true;
         Ok(&self.token)
     }
 
-    fn current_char(&self) -> char {
+    pub fn current_char(&self) -> char {
         self.reader.current_char()
     }
 
-    fn peek_next_char(&self) -> char {
+    pub fn peek_next_char(&self) -> char {
         self.reader.peek_next_char()
     }
 
-    fn current_pos(&self) -> usize {
+    pub fn current_pos(&self) -> usize {
         self.reader.pos()
     }
 
-    fn set_current_pos(&mut self, pos: usize) {
+    pub fn set_current_pos(&mut self, pos: usize) {
         self.reader.set_pos(pos);
     }
 
@@ -1566,21 +1564,21 @@ impl<'a, 'b> Lexer<'a, 'b> {
         true
     }
 
-    fn skip_space(&mut self) -> Result<'b, ()> {
+    pub fn skip_space(&mut self) -> Result<'b, ()> {
         while self.token.kind == Space {
             self.next_token()?;
         }
         Ok(())
     }
 
-    fn skip_space_or_newline(&mut self) -> Result<'b, ()> {
+    pub fn skip_space_or_newline(&mut self) -> Result<'b, ()> {
         while matches!(self.token.kind, Space | Newline) {
             self.next_token()?;
         }
         Ok(())
     }
 
-    fn skip_statement_end(&mut self) -> Result<'b, ()> {
+    pub fn skip_statement_end(&mut self) -> Result<'b, ()> {
         while matches!(self.token.kind, Space | Newline | Op(Semicolon)) {
             self.next_token()?;
         }

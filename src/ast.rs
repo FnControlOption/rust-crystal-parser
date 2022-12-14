@@ -1,7 +1,9 @@
 use crate::location::Location;
 use std::{fmt, rc::Rc};
 
-pub trait ASTNode<'a> {
+pub type AstNodeDyn<'a> = dyn AstNode<'a> + 'a;
+
+pub trait AstNode<'a> {
     fn location(&self) -> Option<Rc<Location<'a>>>;
     fn set_location(&mut self, location: Option<Rc<Location<'a>>>);
 
@@ -12,7 +14,7 @@ pub trait ASTNode<'a> {
         self.set_location(Some(Rc::new(location)));
     }
 
-    fn copy_location(&mut self, node: Box<dyn ASTNode<'a>>) {
+    fn copy_location(&mut self, node: Box<AstNodeDyn<'a>>) {
         self.set_location(node.location());
         self.set_end_location(node.end_location());
     }
@@ -21,14 +23,14 @@ pub trait ASTNode<'a> {
         self.set_end_location(Some(Rc::new(end_location)));
     }
 
-    fn copy_end_location(&mut self, node: Box<dyn ASTNode<'a>>) {
+    fn copy_end_location(&mut self, node: Box<AstNodeDyn<'a>>) {
         self.set_end_location(node.end_location());
     }
 }
 
-macro_rules! ASTNode {
+macro_rules! Node {
     ($name:ident) => {
-        ASTNode!($name;);
+        Node!($name;);
     };
 
     ($name:ident; $(pub $field:ident: $typ:ty,)*) => {
@@ -38,7 +40,7 @@ macro_rules! ASTNode {
             $(pub $field: $typ),*
         }
 
-        impl<'a> ASTNode<'a> for $name<'a> {
+        impl<'a> AstNode<'a> for $name<'a> {
             fn location(&self) -> Option<Rc<Location<'a>>> {
                 self.location.clone()
             }
@@ -68,7 +70,7 @@ macro_rules! ASTNode {
     };
 }
 
-ASTNode!(Nop);
+Node!(Nop);
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum ExpressionsKeyword {
@@ -77,9 +79,9 @@ pub enum ExpressionsKeyword {
     Begin,
 }
 
-ASTNode!(
+Node!(
     Expressions;
-    pub expressions: Vec<Box<dyn ASTNode<'a>>>,
+    pub expressions: Vec<Box<AstNodeDyn<'a>>>,
     pub keyword: ExpressionsKeyword,
 );
 
@@ -88,7 +90,7 @@ impl<'a> Expressions<'a> {
         Self::new(vec![], ExpressionsKeyword::None)
     }
 
-    pub fn from<T>(obj: T) -> Box<dyn ASTNode<'a>>
+    pub fn from<T>(obj: T) -> Box<AstNodeDyn<'a>>
     where
         T: IntoExpressions<'a>,
     {
@@ -97,44 +99,42 @@ impl<'a> Expressions<'a> {
 }
 
 pub trait IntoExpressions<'a> {
-    fn into(self) -> Box<dyn ASTNode<'a>>;
+    fn into(self) -> Box<AstNodeDyn<'a>>;
 }
 
-// impl<'a, T> IntoExpressions<'a> for Option<T>
-// where
-//     T: IntoExpressions<'a>,
-// {
-//     fn into(self) -> Box<dyn ASTNode<'a>> {
-//         if let Some(obj) = self {
-//             obj.into()
-//         } else {
-//             Nop::new()
-//         }
-//     }
-// }
+impl<'a, T> IntoExpressions<'a> for Option<T>
+where
+    T: IntoExpressions<'a>,
+{
+    fn into(self) -> Box<AstNodeDyn<'a>> {
+        if let Some(obj) = self {
+            obj.into()
+        } else {
+            Nop::new()
+        }
+    }
+}
 
-// impl<'a> IntoExpressions<'a> for Vec<Box<dyn ASTNode<'a>>> {
-//     fn into(self) -> Box<dyn ASTNode<'a>> {
-//         // Expressions::new(self, ExpressionsKeyword::None)
-//         // Nop::<'a>::new()
-//         // match self.len() {
-//         //     0 => Nop::new(),
-//         //     1 => self[0],
-//         //     _ => Expressions::new(self, ExpressionsKeyword::None),
-//         // }
-//     }
-// }
+impl<'a> IntoExpressions<'a> for Vec<Box<AstNodeDyn<'a>>> {
+    fn into(mut self) -> Box<AstNodeDyn<'a>> {
+        match self.len() {
+            0 => Nop::new(),
+            1 => self.swap_remove(0), // TODO: why doesn't self[0] work?
+            _ => Expressions::new(self, ExpressionsKeyword::None),
+        }
+    }
+}
 
-impl<'a> IntoExpressions<'a> for Box<dyn ASTNode<'a>> {
-    fn into(self) -> Box<dyn ASTNode<'a>> {
+impl<'a> IntoExpressions<'a> for Box<AstNodeDyn<'a>> {
+    fn into(self) -> Box<AstNodeDyn<'a>> {
         self
     }
 }
 
-ASTNode!(
+Node!(
     RangeLiteral;
-    pub from: Box<dyn ASTNode<'a>>,
-    pub to: Box<dyn ASTNode<'a>>,
+    pub from: Box<AstNodeDyn<'a>>,
+    pub to: Box<AstNodeDyn<'a>>,
     pub exclusive: bool,
 );
 

@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
-use crate::{ast::Visibility, lexer::Lexer, location::Location};
-// use std::fmt;
+use crate::{ast::*, error::Result, lexer::Lexer, location::Location};
 
 struct Unclosed<'b> {
     name: Vec<char>,
@@ -77,39 +76,12 @@ impl<'a, 'b> Parser<'a, 'b> {
         self._wants_doc = wants_doc;
         self.doc_enabled = wants_doc;
     }
+
+    fn parse(&mut self) -> Result<'b, Box<AstNodeDyn<'b>>> {
+        self.lexer.next_token_skip_statement_end()?;
+        Ok(Nop::new())
+    }
 }
-
-// impl<'a> Location<'a> {
-//     pub fn new(filename: &'a str, line_number: usize, column_number: usize) -> Self {
-//         Self {
-//             filename,
-//             line_number,
-//             column_number,
-//         }
-//     }
-
-//     pub fn line_number(&self) -> usize {
-//         self.line_number
-//     }
-
-//     pub fn column_number(&self) -> usize {
-//         self.column_number
-//     }
-
-//     pub fn filename(&self) -> &'a str {
-//         self.filename
-//     }
-// }
-
-// impl<'a> fmt::Display for Location<'a> {
-//     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-//         write!(
-//             f,
-//             "{}:{}:{}",
-//             self.filename, self.line_number, self.column_number,
-//         )
-//     }
-// }
 
 // #[test]
 // fn it_works() {
