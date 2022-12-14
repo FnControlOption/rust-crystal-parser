@@ -77,7 +77,7 @@ impl<'a, 'b> Parser<'a, 'b> {
         self.doc_enabled = wants_doc;
     }
 
-    fn parse(&mut self) -> Result<'b, Box<AstNodeDyn<'b>>> {
+    fn parse(&mut self) -> Result<'b, AstNodeBox<'b>> {
         self.lexer.next_token_skip_statement_end()?;
         Ok(Nop::new())
     }
