@@ -648,13 +648,19 @@ pub struct HashLiteralEntry<'f> {
     pub value: AstNodeBox<'f>,
 }
 
+impl<'f> HashLiteralEntry<'f> {
+    pub fn new(key: AstNodeBox<'f>, value: AstNodeBox<'f>) -> Self {
+        Self { key, value }
+    }
+}
+
 Node!(
     NamedTupleLiteral;
-    pub entries: Vec<NamedTupleLiteralEntry<'f>>,
+    pub entries: Vec<NamedTupleEntry<'f>>,
 );
 
 impl<'f> NamedTupleLiteral<'f> {
-    pub fn new(entries: Vec<NamedTupleLiteralEntry<'f>>) -> Box<Self> {
+    pub fn new(entries: Vec<NamedTupleEntry<'f>>) -> Box<Self> {
         new_node! {
             entries: entries,
         }
@@ -662,9 +668,15 @@ impl<'f> NamedTupleLiteral<'f> {
 }
 
 #[derive(Debug)]
-pub struct NamedTupleLiteralEntry<'f> {
+pub struct NamedTupleEntry<'f> {
     pub key: Vec<char>,
     pub value: AstNodeBox<'f>,
+}
+
+impl<'f> NamedTupleEntry<'f> {
+    pub fn new(key: Vec<char>, value: AstNodeBox<'f>) -> Self {
+        Self { key, value }
+    }
 }
 
 Node!(
