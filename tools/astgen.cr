@@ -9,12 +9,12 @@ root = root.as(Expressions).expressions[0].as(ModuleDef)
 defs = root.body.as(Expressions).expressions
 # pp defs.map(&.to_s.lines.first)
 # puts defs[9].as(ClassDef).name
-puts "pub enum AstNodeEnum<'a> {"
+puts "pub enum AstNodeEnum {"
 defs.each do |d|
   next unless d = d.as? ClassDef
   next if d.abstract?
   name = d.name
-  name = "Self_" if name == "Self"
-  puts "    #{name}(Box<#{name}<'a>>),"
+  name = "Self_" if name.to_s == "Self"
+  puts "    #{name},"
 end
 puts "}"

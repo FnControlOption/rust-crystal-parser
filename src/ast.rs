@@ -27,11 +27,114 @@ pub trait AstNode<'f>: fmt::Debug {
         self.set_end_location(node.end_location());
     }
 
-    fn as_enum(self: Box<Self>) -> AstNodeEnum<'f>;
+    fn as_enum(&self) -> AstNodeEnum;
+
+    fn is_control_expression(&self) -> bool {
+        CONTROL_EXPRESSIONS.contains(&self.as_enum())
+    }
+
+    fn as_box_enum(self: Box<Self>) -> AstNodeBoxEnum<'f>;
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum AstNodeEnum {
+    Nop,
+    Expressions,
+    NilLiteral,
+    BoolLiteral,
+    NumberLiteral,
+    CharLiteral,
+    StringLiteral,
+    StringInterpolation,
+    SymbolLiteral,
+    ArrayLiteral,
+    HashLiteral,
+    NamedTupleLiteral,
+    RangeLiteral,
+    RegexLiteral,
+    TupleLiteral,
+    Var,
+    Block,
+    Call,
+    NamedArgument,
+    // If,
+    // Unless,
+    // Assign,
+    // OpAssign,
+    // MultiAssign,
+    // InstanceVar,
+    // ReadInstanceVar,
+    // ClassVar,
+    // Global,
+    // And,
+    // Or,
+    // Arg,
+    // ProcNotation,
+    // Def,
+    // Macro,
+    // Not,
+    // PointerOf,
+    // SizeOf,
+    // InstanceSizeOf,
+    // Out,
+    // OffsetOf,
+    // VisibilityModifier,
+    // IsA,
+    // RespondsTo,
+    // Require,
+    // When,
+    // Case,
+    // Select,
+    // ImplicitObj,
+    // Path,
+    // ClassDef,
+    // ModuleDef,
+    // AnnotationDef,
+    // While,
+    // Until,
+    // Generic,
+    // TypeDeclaration,
+    // UninitializedVar,
+    // Rescue,
+    // ExceptionHandler,
+    // ProcLiteral,
+    // ProcPointer,
+    // Union,
+    // Self_,
+    Return,
+    Break,
+    Next,
+    // Yield,
+    // Include,
+    // Extend,
+    // LibDef,
+    // FunDef,
+    // TypeDef,
+    // CStructOrUnionDef,
+    // EnumDef,
+    // ExternalVar,
+    // Alias,
+    // Metaclass,
+    // Cast,
+    // NilableCast,
+    // TypeOf,
+    // Annotation,
+    // MacroExpression,
+    // MacroLiteral,
+    // MacroVerbatim,
+    // MacroIf,
+    // MacroFor,
+    // MacroVar,
+    // Underscore,
+    // Splat,
+    // DoubleSplat,
+    // MagicConstant,
+    // Asm,
+    // AsmOperand,
 }
 
 #[derive(Debug)]
-pub enum AstNodeEnum<'f> {
+pub enum AstNodeBoxEnum<'f> {
     Nop(Box<Nop<'f>>),
     Expressions(Box<Expressions<'f>>),
     NilLiteral(Box<NilLiteral<'f>>),
@@ -157,8 +260,12 @@ macro_rules! Node {
                 self.end_location = end_location;
             }
 
-            fn as_enum(self: Box<Self>) -> AstNodeEnum<'f> {
-                AstNodeEnum::$name(self)
+            fn as_enum(&self) -> AstNodeEnum {
+                AstNodeEnum::$name
+            }
+
+            fn as_box_enum(self: Box<Self>) -> AstNodeBoxEnum<'f> {
+                AstNodeBoxEnum::$name(self)
             }
         }
 
@@ -519,6 +626,8 @@ macro_rules! ControlExpressions {
             $name;
             pub exp: Option<AstNodeBox<'f>>,
         );)+
+
+        const CONTROL_EXPRESSIONS: &[AstNodeEnum] = &[$(AstNodeEnum::$name),+];
     };
 }
 
@@ -539,8 +648,12 @@ pub enum Visibility {
 fn it_works() {
     let mut node = RangeLiteral::new(Nop::new(), Nop::new(), false);
     node.at(Location::new("foo", 12, 34));
+
     let node: AstNodeBox = Nop::new();
-    assert!(matches!(node.as_enum(), AstNodeEnum::Nop(_)));
+    assert_eq!(node.as_enum(), AstNodeEnum::Nop);
     let node: Box<Nop> = Nop::new();
-    assert!(matches!(node.as_enum(), AstNodeEnum::Nop(_)));
+    assert_eq!(node.as_enum(), AstNodeEnum::Nop);
+
+    let node: AstNodeBox = Return::new(None);
+    assert!(node.is_control_expression());
 }
