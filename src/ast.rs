@@ -3,7 +3,7 @@ use std::{fmt, rc::Rc};
 
 pub type AstNodeBox<'f> = Box<dyn AstNode<'f> + 'f>;
 
-pub trait AstNode<'f> {
+pub trait AstNode<'f>: fmt::Debug {
     fn location(&self) -> Option<Rc<Location<'f>>>;
     fn set_location(&mut self, location: Option<Rc<Location<'f>>>);
 
@@ -14,7 +14,7 @@ pub trait AstNode<'f> {
         self.set_location(Some(Rc::new(location)));
     }
 
-    fn copy_location(&mut self, node: AstNodeBox<'f>) {
+    fn at_node(&mut self, node: AstNodeBox<'f>) {
         self.set_location(node.location());
         self.set_end_location(node.end_location());
     }
@@ -23,11 +23,14 @@ pub trait AstNode<'f> {
         self.set_end_location(Some(Rc::new(end_location)));
     }
 
-    fn copy_end_location(&mut self, node: AstNodeBox<'f>) {
+    fn at_node_end(&mut self, node: AstNodeBox<'f>) {
         self.set_end_location(node.end_location());
     }
+
+    fn as_enum(self: Box<Self>) -> AstNodeEnum<'f>;
 }
 
+#[derive(Debug)]
 pub enum AstNodeEnum<'f> {
     Nop(Box<Nop<'f>>),
     Expressions(Box<Expressions<'f>>),
@@ -92,9 +95,9 @@ pub enum AstNodeEnum<'f> {
     // ProcPointer(Box<ProcPointer<'f>>),
     // Union(Box<Union<'f>>),
     // Self_(Box<Self_<'f>>),
-    // Return(Box<Return<'f>>),
-    // Break(Box<Break<'f>>),
-    // Next(Box<Next<'f>>),
+    Return(Box<Return<'f>>),
+    Break(Box<Break<'f>>),
+    Next(Box<Next<'f>>),
     // Yield(Box<Yield<'f>>),
     // Include(Box<Include<'f>>),
     // Extend(Box<Extend<'f>>),
@@ -130,6 +133,7 @@ macro_rules! Node {
     };
 
     ($name:ident; $(pub $field:ident: $typ:ty,)*) => {
+        #[derive(Debug)]
         pub struct $name<'f> {
             location: Option<Rc<Location<'f>>>,
             end_location: Option<Rc<Location<'f>>>,
@@ -152,6 +156,10 @@ macro_rules! Node {
             fn set_end_location(&mut self, end_location: Option<Rc<Location<'f>>>) {
                 self.end_location = end_location;
             }
+
+            fn as_enum(self: Box<Self>) -> AstNodeEnum<'f> {
+                AstNodeEnum::$name(self)
+            }
         }
 
         impl<'f> $name<'f> {
@@ -161,12 +169,6 @@ macro_rules! Node {
                     end_location: None,
                     $($field),*
                 })
-            }
-        }
-
-        impl<'f> From<Box<$name<'f>>> for AstNodeEnum<'f> {
-            fn from(node: Box<$name<'f>>) -> Self {
-                AstNodeEnum::$name(node)
             }
         }
     };
@@ -440,6 +442,7 @@ Node!(
     pub name: Option<AstNodeBox<'f>>,
 );
 
+#[derive(Debug)]
 pub struct HashLiteralEntry<'f> {
     pub key: AstNodeBox<'f>,
     pub value: AstNodeBox<'f>,
@@ -450,6 +453,7 @@ Node!(
     pub entries: Vec<NamedTupleLiteralEntry<'f>>,
 );
 
+#[derive(Debug)]
 pub struct NamedTupleLiteralEntry<'f> {
     pub key: Vec<char>,
     pub value: AstNodeBox<'f>,
@@ -509,6 +513,21 @@ Node!(
     pub value: AstNodeBox<'f>,
 );
 
+macro_rules! ControlExpressions {
+    ($($name:ident;)+) => {
+        $(Node!(
+            $name;
+            pub exp: Option<AstNodeBox<'f>>,
+        );)+
+    };
+}
+
+ControlExpressions!(
+    Return;
+    Break;
+    Next;
+);
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Visibility {
     Public,
@@ -518,5 +537,10 @@ pub enum Visibility {
 
 #[test]
 fn it_works() {
-    RangeLiteral::new(Nop::new(), Nop::new(), false);
+    let mut node = RangeLiteral::new(Nop::new(), Nop::new(), false);
+    node.at(Location::new("foo", 12, 34));
+    let node: AstNodeBox = Nop::new();
+    assert!(matches!(node.as_enum(), AstNodeEnum::Nop(_)));
+    let node: Box<Nop> = Nop::new();
+    assert!(matches!(node.as_enum(), AstNodeEnum::Nop(_)));
 }
