@@ -14,7 +14,7 @@ pub trait AstNode<'f>: fmt::Debug {
         self.set_location(Some(Rc::new(location)));
     }
 
-    fn at_node(&mut self, node: AstNodeBox<'f>) {
+    fn at_node<'a, 'b>(&'a mut self, node: &'b dyn AstNode<'f>) {
         self.set_location(node.location());
         self.set_end_location(node.end_location());
     }
@@ -23,7 +23,7 @@ pub trait AstNode<'f>: fmt::Debug {
         self.set_end_location(Some(Rc::new(end_location)));
     }
 
-    fn at_node_end(&mut self, node: AstNodeBox<'f>) {
+    fn at_node_end<'a, 'b>(&'a mut self, node: &'b dyn AstNode<'f>) {
         self.set_end_location(node.end_location());
     }
 
@@ -648,6 +648,7 @@ pub enum Visibility {
 fn it_works() {
     let mut node = RangeLiteral::new(Nop::new(), Nop::new(), false);
     node.at(Location::new("foo", 12, 34));
+    node.at_node_end(Nop::new().as_ref());
 
     let node: AstNodeBox = Nop::new();
     assert_eq!(node.as_enum(), AstNodeEnum::Nop);
