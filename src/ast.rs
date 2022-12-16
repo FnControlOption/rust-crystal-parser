@@ -1075,7 +1075,8 @@ Node!(
 
 Node!(
     NilableCast;
-    // TODO
+    pub obj: AstNodeBox<'f>,
+    pub to: AstNodeBox<'f>,
 );
 
 Node!(
