@@ -5,7 +5,7 @@ pub struct SyntaxError<'f> {
     line_number: usize,
     column_number: usize,
     filename: &'f str,
-    size: Option<usize>,
+    // size: Option<usize>,
 }
 
 impl<'f> SyntaxError<'f> {
@@ -14,18 +14,18 @@ impl<'f> SyntaxError<'f> {
         line_number: usize,
         column_number: usize,
         filename: &'f str,
-        size: Option<usize>,
+        // size: Option<usize>,
     ) -> Self {
         Self {
             message,
             line_number,
             column_number,
             filename,
-            size,
+            // size,
         }
     }
 
-    pub fn message(&self) -> &String {
+    pub fn message(&self) -> &str {
         &self.message
     }
 
@@ -41,7 +41,7 @@ impl<'f> SyntaxError<'f> {
         self.filename
     }
 
-    pub fn size(&self) -> Option<usize> {
-        self.size
-    }
+    // pub fn size(&self) -> Option<usize> {
+    //     self.size
+    // }
 }

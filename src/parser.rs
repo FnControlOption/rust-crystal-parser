@@ -4,9 +4,9 @@ use std::collections::HashSet;
 
 use crate::ast::*;
 use crate::error::Result;
-use crate::lexer::Lexer;
+use crate::lexer::{Lexer, Raise, RaiseAt};
 use crate::location::Location;
-use crate::token::{Keyword, TokenKind};
+use crate::token::{Keyword, TokenKind, TokenValue};
 
 struct Unclosed<'f> {
     name: Vec<char>,
@@ -90,23 +90,38 @@ impl<'s, 'f> Parser<'s, 'f> {
         Ok(Nop::new())
     }
 
+    fn next_comes_colon_space(&mut self) -> bool {
+        if self.no_type_declaration != 0 {
+            return false;
+        }
+
+        todo!();
+    }
+
     fn is_var_in_scope(&self, name: Vec<char>) -> bool {
         self.var_scopes.last().unwrap().contains(&name)
     }
 
-    // fn check_void_value(&self, exp: AstNodeBox<'f>, location: &Location<'f>) -> Result<'f, ()> {
-    //     Ok(())
-    // }
+    fn check_void_value(&self, exp: AstNodeBox<'f>, location: &Location<'f>) -> Result<'f, ()> {
+        if exp.is_control_expression() {
+            self.raise_at("void value expression", location)
+        } else {
+            Ok(())
+        }
+    }
 
-    // fn check_void_expression_keyword(&self) -> Result<'f, ()> {
-    //     let token = self.lexer.token();
-    //     if let TokenValue::Keyword(keyword) = token.value {
-    //         if matches!(keyword, Keyword::Break | Keyword::Next | Keyword::Return) {
-    //             if !self.next_comes_colon_space {}
-    //         }
-    //     }
-    //     Ok(())
-    // }
+    fn check_void_expression_keyword(&mut self) -> Result<'f, ()> {
+        if let TokenValue::Keyword(keyword) = self.lexer.token().value {
+            if matches!(keyword, Keyword::Break | Keyword::Next | Keyword::Return) {
+                if !self.next_comes_colon_space() {
+                    let token = self.lexer.token();
+                    return self.raise_at("void value expression", token);
+                    // TODO: keyword.to_string().len()
+                }
+            }
+        }
+        Ok(())
+    }
 
     fn check_any(&self, token_kinds: &[TokenKind]) -> Result<'f, ()> {
         let token = self.lexer.token();
@@ -115,26 +130,26 @@ impl<'s, 'f> Parser<'s, 'f> {
                 return Ok(());
             }
         }
-        let mut msg = String::new();
-        msg.push_str("expecting any of these tokens: ");
+        let mut message = String::new();
+        message.push_str("expecting any of these tokens: ");
         let mut first = true;
         for kind in token_kinds {
             if !first {
-                msg.push_str(", ");
+                message.push_str(", ");
             }
-            msg.push_str(&kind.to_string());
+            message.push_str(&kind.to_string());
             first = false;
         }
-        msg.push_str(" (not '");
-        msg.push_str(&token.kind.to_string());
-        msg.push_str("')");
-        self.lexer.raise_for(msg, token)
+        message.push_str(" (not '");
+        message.push_str(&token.kind.to_string());
+        message.push_str("')");
+        self.raise_at(message, token)
     }
 
     fn check(&self, token_kind: TokenKind) -> Result<'f, ()> {
         let token = self.lexer.token();
         if token_kind != token.kind {
-            self.lexer.raise_for(
+            self.raise_at(
                 format!("expecting token '{token_kind}', not '{token}'"),
                 token,
             )
@@ -146,7 +161,7 @@ impl<'s, 'f> Parser<'s, 'f> {
     fn check_ident(&self, value: Keyword) -> Result<'f, ()> {
         let token = self.lexer.token();
         if !token.is_keyword(value) {
-            self.lexer.raise_for(
+            self.raise_at(
                 format!("expecting identifier '{value}', not '{token}'"),
                 token,
             )
@@ -157,12 +172,14 @@ impl<'s, 'f> Parser<'s, 'f> {
 
     fn check_any_ident(&self) -> Result<'f, Vec<char>> {
         self.check(TokenKind::Ident)?;
-        Ok(self.lexer.token().value.to_string().chars().collect())
+        let token = self.lexer.token();
+        Ok(token.value.to_string().chars().collect())
     }
 
     fn check_const(&self) -> Result<'f, Vec<char>> {
         self.check(TokenKind::Const)?;
-        Ok(self.lexer.token().value.to_string().chars().collect())
+        let token = self.lexer.token();
+        Ok(token.value.to_string().chars().collect())
     }
 
     fn unexpected_token<T>(&self) -> Result<'f, T> {
@@ -171,23 +188,26 @@ impl<'s, 'f> Parser<'s, 'f> {
 
     fn unexpected_token2<T>(&self, msg: Option<&str>) -> Result<'f, T> {
         let token = self.lexer.token();
-        let token_str = if token.kind == TokenKind::Eof {
-            "EOF".to_string()
+        let mut message = String::new();
+        message.push_str("unexpected token: ");
+        if token.kind == TokenKind::Eof {
+            message.push_str("EOF");
         } else {
-            format!("\"{}\"", token)
+            message.push('"');
+            message.push_str(&token.to_string());
+            message.push('"');
         };
         if let Some(msg) = msg {
-            self.lexer
-                .raise_for(format!("unexpected token: {token_str} ({msg})"), token)
-        } else {
-            self.lexer
-                .raise_for(format!("unexpected token: {token_str}"), token)
+            message.push_str(" (");
+            message.push_str(msg);
+            message.push(')');
         }
+        self.raise_at(message, token)
     }
 
     fn unexpected_token_in_atomic<T>(&self) -> Result<'f, T> {
         if let Some(unclosed) = self.unclosed_stack.last() {
-            return self.lexer.raise_loc(
+            return self.raise_at(
                 format!("unterminated {}", String::from_iter(&unclosed.name)),
                 &unclosed.location,
             );
@@ -219,6 +239,24 @@ impl<'s, 'f> Parser<'s, 'f> {
         let arg_name = format!("__arg{}", self.temp_arg_count);
         self.temp_arg_count += 1;
         arg_name.chars().collect()
+    }
+}
+
+impl<'s, 'f, S> Raise<'f, S> for Parser<'s, 'f>
+where
+    Lexer<'s, 'f>: Raise<'f, S>,
+{
+    fn raise<T>(&self, message: S) -> Result<'f, T> {
+        self.lexer.raise(message)
+    }
+}
+
+impl<'s, 'f, S, L> RaiseAt<'f, S, L> for Parser<'s, 'f>
+where
+    Lexer<'s, 'f>: RaiseAt<'f, S, L>,
+{
+    fn raise_at<T>(&self, message: S, location: L) -> Result<'f, T> {
+        self.lexer.raise_at(message, location)
     }
 }
 

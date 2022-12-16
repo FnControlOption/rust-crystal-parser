@@ -14,7 +14,7 @@ pub trait AstNode<'f>: fmt::Debug {
         self.set_location(Some(Rc::new(location)));
     }
 
-    fn at_node<'a, 'b>(&'a mut self, node: &'b dyn AstNode<'f>) {
+    fn at_node(&'_ mut self, node: &'_ dyn AstNode<'f>) {
         self.set_location(node.location());
         self.set_end_location(node.end_location());
     }
@@ -23,7 +23,7 @@ pub trait AstNode<'f>: fmt::Debug {
         self.set_end_location(Some(Rc::new(end_location)));
     }
 
-    fn at_node_end<'a, 'b>(&'a mut self, node: &'b dyn AstNode<'f>) {
+    fn at_node_end(&'_ mut self, node: &'_ dyn AstNode<'f>) {
         self.set_end_location(node.end_location());
     }
 

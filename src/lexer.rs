@@ -373,8 +373,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
                     c if c.is_ascii_digit() => {
                         return self.raise_at(
                             ".1 style number literal is not supported, put 0 before dot",
-                            line,
-                            column,
+                            (line, column),
                         )
                     }
                     _ => self.token.kind = Op(Period),
@@ -467,25 +466,23 @@ impl<'s, 'f> Lexer<'s, 'f> {
                             self.token.value = TokenValue::Char('\0');
                         }
                         '\0' => {
-                            return self.raise_at("unterminated char literal", line, column);
+                            return self.raise_at("unterminated char literal", (line, column));
                         }
                         c => {
                             return self.raise_at(
-                                &format!("invalid char escape sequence '\\{c}'"),
-                                line,
-                                column,
+                                format!("invalid char escape sequence '\\{c}'"),
+                                (line, column),
                             );
                         }
                     },
                     '\'' => {
                         return self.raise_at(
                             "invalid empty char literal (did you mean '\\''?)",
-                            line,
-                            column,
+                            (line, column),
                         );
                     }
                     '\0' => {
-                        return self.raise_at("unterminated char literal", line, column);
+                        return self.raise_at("unterminated char literal", (line, column));
                     }
                     c => {
                         self.token.value = c.into();
@@ -494,8 +491,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
                 if self.next_char() != '\'' {
                     return self.raise_at(
                         "unterminated char literal, use double quotes for strings",
-                        line,
-                        column,
+                        (line, column),
                     );
                 }
                 self.next_char();
@@ -1383,12 +1379,12 @@ impl<'s, 'f> Lexer<'s, 'f> {
                                 string.push('\n');
                             }
                             '\0' => {
-                                return self.raise_at("unterminated quoted symbol", line, column);
+                                return self.raise_at("unterminated quoted symbol", (line, column));
                             }
                             c => string.push(c),
                         },
                         '"' => break,
-                        '\0' => return self.raise_at("unterminated quoted symbol", line, column),
+                        '\0' => return self.raise_at("unterminated quoted symbol", (line, column)),
                         c => string.push(c),
                     }
                 }
@@ -1610,13 +1606,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
     }
 
     fn unknown_token<T>(&self) -> Result<'f, T> {
-        Err(SyntaxError::new(
-            format!("unknown token: {}", self.current_char()),
-            self.line_number,
-            self.column_number,
-            self.filename,
-            None,
-        ))
+        self.raise(format!("unknown token: {}", self.current_char()))
     }
 
     fn set_token_raw_from_start(&mut self, start: usize) {
@@ -1624,49 +1614,72 @@ impl<'s, 'f> Lexer<'s, 'f> {
             self.token.raw = self.slice_range(start);
         }
     }
+}
 
-    pub fn raise<T>(&self, message: &str) -> Result<'f, T> {
+pub trait Raise<'f, S> {
+    fn raise<T>(&self, message: S) -> Result<'f, T>;
+}
+
+impl<'f> Raise<'f, &'_ str> for Lexer<'_, 'f> {
+    fn raise<T>(&self, message: &'_ str) -> Result<'f, T> {
+        self.raise(message.to_string())
+    }
+}
+
+impl<'f> Raise<'f, String> for Lexer<'_, 'f> {
+    fn raise<T>(&self, message: String) -> Result<'f, T> {
         Err(SyntaxError::new(
-            message.to_string(),
+            message,
             self.line_number,
             self.column_number,
             self.filename,
-            None,
         ))
     }
+}
 
-    pub fn raise_at<T>(
-        &self,
-        message: &str,
-        line_number: usize,
-        column_number: usize,
-    ) -> Result<'f, T> {
+pub trait RaiseAt<'f, S, L> {
+    fn raise_at<T>(&self, message: S, location: L) -> Result<'f, T>;
+}
+
+impl<'s, 'f, L> RaiseAt<'f, &'_ str, L> for Lexer<'s, 'f>
+where
+    Lexer<'s, 'f>: RaiseAt<'f, String, L>,
+{
+    fn raise_at<T>(&self, message: &'_ str, location: L) -> Result<'f, T> {
+        self.raise_at(message.to_string(), location)
+    }
+}
+
+impl<'f> RaiseAt<'f, String, (usize, usize)> for Lexer<'_, 'f> {
+    fn raise_at<T>(&self, message: String, location: (usize, usize)) -> Result<'f, T> {
+        let (line_number, column_number) = location;
         Err(SyntaxError::new(
-            message.to_string(),
+            message,
             line_number,
             column_number,
             self.filename,
-            None,
         ))
     }
+}
 
-    pub fn raise_for<T>(&self, message: String, token: &Token<'s, 'f>) -> Result<'f, T> {
+impl<'f> RaiseAt<'f, String, &Token<'_, 'f>> for Lexer<'_, 'f> {
+    fn raise_at<T>(&self, message: String, token: &Token<'_, 'f>) -> Result<'f, T> {
         Err(SyntaxError::new(
             message,
             token.line_number,
             token.column_number,
             token.filename,
-            None,
         ))
     }
+}
 
-    pub fn raise_loc<T>(&self, message: String, location: &Location<'f>) -> Result<'f, T> {
+impl<'f> RaiseAt<'f, String, &Location<'f>> for Lexer<'_, 'f> {
+    fn raise_at<T>(&self, message: String, location: &Location<'f>) -> Result<'f, T> {
         Err(SyntaxError::new(
             message,
             location.line_number(),
             location.column_number(),
             location.filename(),
-            None,
         ))
     }
 }
