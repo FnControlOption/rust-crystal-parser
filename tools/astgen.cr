@@ -10,7 +10,7 @@ defs = root.body.as(Expressions).expressions
 # pp defs.map(&.to_s.lines.first)
 # puts defs[9].as(ClassDef).name
 # puts "pub enum AstNodeEnum {"
-start, stop = "TypeOf", "AsmOperand"
+start, stop = nil, nil
 found = false
 defs.each do |node|
   next unless node = node.as? ClassDef
@@ -75,6 +75,7 @@ defs.each do |node|
     when TypeDeclaration
       type_declaration = arg.as(TypeDeclaration)
       field_name = type_declaration.var.to_s
+      default_value = type_declaration.value
       is_optional = false
       case field_type = type_declaration.declared_type
       when Crystal::Union
@@ -99,12 +100,13 @@ defs.each do |node|
                    when "Char"        then "char"
                    when "Entry"       then "#{name}Entry<'f>"
                    when "Int32"       then "usize"
+                   when "Keyword"     then "#{name}Keyword"
                    when "Location"    then "Location<'f>"
                    when "NumberKind"  then "NumberKind"
                    when "Regex::Options"
                     nil
                    when "String"      then "Vec<char>"
-                   when "Suffix"      then "GenericSuffix"
+                   when "Suffix"      then "#{name}Suffix"
                    when "Token::Kind" then "TokenKind"
                    when "Visibility"  then "Visibility"
                    when "When"
@@ -135,7 +137,7 @@ defs.each do |node|
     when Assign
       assign = arg.as(Assign)
       field_name = assign.target.to_s
-      default_value = assign.value.to_s
+      default_value = assign.value
       field_type = case field_name
                    when "visibility" then "Visibility"
                    else
@@ -158,13 +160,25 @@ defs.each do |node|
     else
       abort "expected TypeDeclaration or Assign for 'property', found #{arg.class_desc}"
     end
+    if default_value
+      default_value = default_value.to_s
+      if default_value == "Keyword::None"
+        default_value = "#{name}#{default_value}"
+      elsif !default_value.in? %w(
+        false
+        true
+        Visibility::Public
+      )
+        abort "unexpected value: #{default_value}"
+      end
+    end
     field_name = "#{field_name}_" if field_name.in? %w(
       abstract
       const
       else
       struct
     )
-    {field_name, field_type}
+    {field_name, field_type, default_value}
   end
   if fields.empty?
     puts
@@ -181,7 +195,7 @@ defs.each do |node|
     puts
     puts "Node!("
     puts "    #{name};"
-    fields.each do |field_name, field_type|
+    fields.each do |field_name, field_type, default_value|
       if field_type
         puts "    pub #{field_name}: #{field_type},"
       else
@@ -194,7 +208,7 @@ defs.each do |node|
     impl<'f> #{name}<'f> {
         pub fn new(
     EOS
-    fields.each do |field_name, field_type|
+    fields.each do |field_name, field_type, default_value|
       if field_type
         puts "        #{field_name}: #{field_type},"
       else
@@ -203,11 +217,12 @@ defs.each do |node|
     end
     puts "    ) -> Box<Self> {"
     puts "        new_node! {"
-    fields.each do |field_name, field_type|
+    fields.each do |field_name, field_type, default_value|
+      value = default_value || field_name
       if field_type
-        puts "            #{field_name}: #{field_name},"
+        puts "            #{field_name}: #{value},"
       else
-        puts "            // #{field_name}: #{field_name},"
+        puts "            // #{field_name}: #{value},"
       end
     end
     puts <<-EOS

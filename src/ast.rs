@@ -792,10 +792,10 @@ impl<'f> Call<'f> {
         name_location: Option<Location<'f>>,
         name_size: Option<usize>,
         doc: Option<Vec<char>>,
-        visibility: Visibility,
+        // visibility: Visibility,
         global: bool,
-        expansion: bool,
-        has_parentheses: bool,
+        // expansion: bool,
+        // has_parentheses: bool,
     ) -> Box<Self> {
         new_node! {
             obj: obj,
@@ -807,10 +807,10 @@ impl<'f> Call<'f> {
             name_location: name_location,
             name_size: name_size,
             doc: doc,
-            visibility: visibility,
+            visibility: Visibility::Public,
             global: global,
-            expansion: expansion,
-            has_parentheses: has_parentheses,
+            expansion: false,
+            has_parentheses: false,
         }
     }
 
@@ -1117,13 +1117,13 @@ impl<'f> Def<'f> {
         name_location: Option<Location<'f>>,
         splat_index: Option<usize>,
         doc: Option<Vec<char>>,
-        visibility: Visibility,
+        // visibility: Visibility,
         macro_def: bool,
-        calls_super: bool,
-        calls_initialize: bool,
-        calls_previous_def: bool,
-        uses_block_arg: bool,
-        assigns_special_var: bool,
+        // calls_super: bool,
+        // calls_initialize: bool,
+        // calls_previous_def: bool,
+        // uses_block_arg: bool,
+        // assigns_special_var: bool,
         abstract_: bool,
     ) -> Box<Self> {
         new_node! {
@@ -1139,13 +1139,13 @@ impl<'f> Def<'f> {
             name_location: name_location,
             splat_index: splat_index,
             doc: doc,
-            visibility: visibility,
+            visibility: Visibility::Public,
             macro_def: macro_def,
-            calls_super: calls_super,
-            calls_initialize: calls_initialize,
-            calls_previous_def: calls_previous_def,
-            uses_block_arg: uses_block_arg,
-            assigns_special_var: assigns_special_var,
+            calls_super: false,
+            calls_initialize: false,
+            calls_previous_def: false,
+            uses_block_arg: false,
+            assigns_special_var: false,
             abstract_: abstract_,
         }
     }
@@ -1174,7 +1174,7 @@ impl<'f> Macro<'f> {
         name_location: Option<Location<'f>>,
         splat_index: Option<usize>,
         doc: Option<Vec<char>>,
-        visibility: Visibility,
+        // visibility: Visibility,
     ) -> Box<Self> {
         new_node! {
             name: name,
@@ -1185,7 +1185,7 @@ impl<'f> Macro<'f> {
             name_location: name_location,
             splat_index: splat_index,
             doc: doc,
-            visibility: visibility,
+            visibility: Visibility::Public,
         }
     }
 }
@@ -1378,11 +1378,15 @@ Node!(
 );
 
 impl<'f> Path<'f> {
-    pub fn new(names: Vec<Vec<char>>, global: bool, visibility: Visibility) -> Box<Self> {
+    pub fn new(
+        names: Vec<Vec<char>>,
+        global: bool,
+        // visibility: Visibility,
+    ) -> Box<Self> {
         new_node! {
             names: names,
             global: global,
-            visibility: visibility,
+            visibility: Visibility::Public,
         }
     }
 }
@@ -1412,7 +1416,7 @@ impl<'f> ClassDef<'f> {
         splat_index: Option<usize>,
         abstract_: bool,
         struct_: bool,
-        visibility: Visibility,
+        // visibility: Visibility,
     ) -> Box<Self> {
         new_node! {
             name: name,
@@ -1424,7 +1428,7 @@ impl<'f> ClassDef<'f> {
             splat_index: splat_index,
             abstract_: abstract_,
             struct_: struct_,
-            visibility: visibility,
+            visibility: Visibility::Public,
         }
     }
 }
@@ -1448,7 +1452,7 @@ impl<'f> ModuleDef<'f> {
         splat_index: Option<usize>,
         name_location: Option<Location<'f>>,
         doc: Option<Vec<char>>,
-        visibility: Visibility,
+        // visibility: Visibility,
     ) -> Box<Self> {
         new_node! {
             name: name,
@@ -1457,7 +1461,7 @@ impl<'f> ModuleDef<'f> {
             splat_index: splat_index,
             name_location: name_location,
             doc: doc,
-            visibility: visibility,
+            visibility: Visibility::Public,
         }
     }
 }
@@ -1620,8 +1624,8 @@ impl<'f> ExceptionHandler<'f> {
         rescues: Option<Vec<Box<Rescue<'f>>>>,
         else_: Option<AstNodeBox<'f>>,
         ensure: Option<AstNodeBox<'f>>,
-        implicit: bool,
-        suffix: bool,
+        // implicit: bool,
+        // suffix: bool,
         else_location: Option<Location<'f>>,
         ensure_location: Option<Location<'f>>,
     ) -> Box<Self> {
@@ -1630,8 +1634,8 @@ impl<'f> ExceptionHandler<'f> {
             rescues: rescues,
             else_: else_,
             ensure: ensure,
-            implicit: implicit,
-            suffix: suffix,
+            implicit: false,
+            suffix: false,
             else_location: else_location,
             ensure_location: ensure_location,
         }
@@ -1732,12 +1736,12 @@ impl<'f> Yield<'f> {
     pub fn new(
         exps: Vec<AstNodeBox<'f>>,
         scope: Option<AstNodeBox<'f>>,
-        has_parentheses: bool,
+        // has_parentheses: bool,
     ) -> Box<Self> {
         new_node! {
             exps: exps,
             scope: scope,
-            has_parentheses: has_parentheses,
+            has_parentheses: false,
         }
     }
 }
@@ -1781,13 +1785,13 @@ impl<'f> LibDef<'f> {
         name: Vec<char>,
         body: AstNodeBox<'f>,
         name_location: Option<Location<'f>>,
-        visibility: Visibility,
+        // visibility: Visibility,
     ) -> Box<Self> {
         new_node! {
             name: name,
             body: body,
             name_location: name_location,
-            visibility: visibility,
+            visibility: Visibility::Public,
         }
     }
 }
@@ -1878,14 +1882,14 @@ impl<'f> EnumDef<'f> {
         members: Vec<AstNodeBox<'f>>,
         base_type: Option<AstNodeBox<'f>>,
         doc: Option<Vec<char>>,
-        visibility: Visibility,
+        // visibility: Visibility,
     ) -> Box<Self> {
         new_node! {
             name: name,
             members: members,
             base_type: base_type,
             doc: doc,
-            visibility: visibility,
+            visibility: Visibility::Public,
         }
     }
 }
@@ -1924,13 +1928,13 @@ impl<'f> Alias<'f> {
         name: Box<Path<'f>>,
         value: AstNodeBox<'f>,
         doc: Option<Vec<char>>,
-        visibility: Visibility,
+        // visibility: Visibility,
     ) -> Box<Self> {
         new_node! {
             name: name,
             value: value,
             doc: doc,
-            visibility: visibility,
+            visibility: Visibility::Public,
         }
     }
 }
