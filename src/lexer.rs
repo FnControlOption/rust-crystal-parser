@@ -3,10 +3,8 @@
 use crate::char_reader::CharReader;
 use crate::error::{Result, SyntaxError};
 use crate::location::Location;
-use crate::token::Magic::*;
-use crate::token::Op::*;
-use crate::token::TokenKind::*;
-use crate::token::*;
+use crate::token::{Magic::*, Op::*, TokenKind::*, *};
+use std::rc::Rc;
 use std::string::String;
 
 pub struct Lexer<'s, 'f> {
@@ -30,7 +28,7 @@ pub struct Lexer<'s, 'f> {
     stacked_filename: &'f str,
     stacked_line_number: usize,
     stacked_column_number: usize,
-    token_end_location: Option<Location<'f>>,
+    token_end_location: Option<Rc<Location<'f>>>,
     // string_pool
     heredocs: Vec<DelimiterState>,
     // macro_expansion_pragmas
@@ -1084,15 +1082,15 @@ impl<'s, 'f> Lexer<'s, 'f> {
         Ok(&self.token)
     }
 
-    fn token_end_location(&mut self) -> &Location {
+    fn token_end_location(&mut self) -> Rc<Location<'f>> {
         if self.token_end_location.is_none() {
-            self.token_end_location = Some(Location::new(
+            self.token_end_location = Some(Rc::new(Location::new(
                 self.filename,
                 self.line_number,
                 self.column_number - 1,
-            ))
+            )))
         }
-        self.token_end_location.as_ref().unwrap()
+        self.token_end_location.as_ref().unwrap().clone()
     }
 
     fn consume_comment(&mut self, start_pos: usize) -> Result<'f, &Token<'s, 'f>> {

@@ -1,12 +1,11 @@
 #![allow(dead_code)]
 
-use std::collections::HashSet;
-
 use crate::ast::*;
 use crate::error::Result;
 use crate::lexer::{Lexer, Raise, RaiseAt};
 use crate::location::Location;
-use crate::token::{DelimiterValue, Keyword, Op, TokenKind, TokenValue};
+use crate::token::*;
+use std::collections::HashSet;
 
 struct Unclosed<'f> {
     name: String,

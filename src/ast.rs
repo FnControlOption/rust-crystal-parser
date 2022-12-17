@@ -1,5 +1,7 @@
-use crate::{location::Location, token::TokenKind};
-use std::{fmt, rc::Rc};
+use crate::location::Location;
+use crate::token::TokenKind;
+use std::fmt;
+use std::rc::Rc;
 
 pub type AstNodeBox<'f> = Box<dyn AstNode<'f> + 'f>;
 

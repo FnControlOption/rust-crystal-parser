@@ -2,7 +2,7 @@ pub struct CharReader<'s> {
     pub string: &'s [char],
     current_char: char,
     pos: usize,
-    end: bool,
+    // end: bool,
 }
 
 impl<'s> CharReader<'s> {
@@ -11,7 +11,7 @@ impl<'s> CharReader<'s> {
             string,
             pos: 0,
             current_char: '\0',
-            end: false,
+            // end: false,
         };
         reader.reset_current_char();
         reader
@@ -21,9 +21,9 @@ impl<'s> CharReader<'s> {
         self.current_char
     }
 
-    pub fn has_next(&self) -> bool {
-        !self.end
-    }
+    // pub fn has_next(&self) -> bool {
+    //     !self.end
+    // }
 
     pub fn next_char(&mut self) -> char {
         self.pos += 1;
@@ -51,10 +51,10 @@ impl<'s> CharReader<'s> {
 
     fn reset_current_char(&mut self) {
         if self.pos < self.string.len() {
-            self.end = false;
+            // self.end = false;
             self.current_char = self.string[self.pos];
         } else {
-            self.end = true;
+            // self.end = true;
             self.current_char = '\0';
         }
     }

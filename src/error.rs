@@ -1,5 +1,9 @@
 pub type Result<'f, T> = std::result::Result<T, SyntaxError<'f>>;
 
+pub trait Foo {
+    type Result<T>;
+}
+
 pub struct SyntaxError<'f> {
     message: String,
     line_number: usize,

@@ -59,12 +59,12 @@ defs.each do |node|
   fields = class_body.compact_map do |expression|
     next unless call = expression.as? Call
     next if call.name.in? %w(
-      def_equals
-      def_equals_and_hash
-      def_hash
-      record
-      setter
-    )
+              def_equals
+              def_equals_and_hash
+              def_hash
+              record
+              setter
+            )
     unless call.name.in? %w(property property?)
       abort "expected 'property', found '#{call.name}'"
     end
@@ -103,33 +103,33 @@ defs.each do |node|
                    when "Keyword"     then "#{name}Keyword"
                    when "Location"    then "Location<'f>"
                    when "NumberKind"  then "NumberKind"
-                   when "Regex::Options"
-                    nil
-                   when "String"      then "Vec<char>"
+                   when "String"      then "String"
                    when "Suffix"      then "#{name}Suffix"
                    when "Token::Kind" then "TokenKind"
                    when "Visibility"  then "Visibility"
+                   when "Regex::Options"
+                     nil
                    when "When"
-                    name == "Case" ? "When<'f>" : "#{name}When<'f>"
+                     name == "Case" ? "When<'f>" : "#{name}When<'f>"
                    else
                      if field_type.in? %w(
-                       Annotation
-                       Arg
-                       AsmOperand
-                       Block
-                       Call
-                       Def
-                       NamedArgument
-                       Path
-                       Rescue
-                       Var
-                     )
+                          Annotation
+                          Arg
+                          AsmOperand
+                          Block
+                          Call
+                          Def
+                          NamedArgument
+                          Path
+                          Rescue
+                          Var
+                        )
                        "Box<#{field_type}<'f>>"
                      else
                        abort "unexpected type: #{field_type}"
                      end
                    end
-                   
+
       if field_type
         field_type = "Vec<#{field_type}>" if is_array
         field_type = "Option<#{field_type}>" if is_optional
@@ -142,16 +142,16 @@ defs.each do |node|
                    when "visibility" then "Visibility"
                    else
                      if field_name.in? %w(
-                       assigns_special_var
-                       calls_initialize
-                       calls_previous_def
-                       calls_super
-                       expansion
-                       has_parentheses
-                       implicit
-                       suffix
-                       uses_block_arg
-                     )
+                          assigns_special_var
+                          calls_initialize
+                          calls_previous_def
+                          calls_super
+                          expansion
+                          has_parentheses
+                          implicit
+                          suffix
+                          uses_block_arg
+                        )
                        "bool"
                      else
                        abort "unknown field '#{field_name}'"
@@ -165,19 +165,19 @@ defs.each do |node|
       if default_value == "Keyword::None"
         default_value = "#{name}#{default_value}"
       elsif !default_value.in? %w(
-        false
-        true
-        Visibility::Public
-      )
+              false
+              true
+              Visibility::Public
+            )
         abort "unexpected value: #{default_value}"
       end
     end
     field_name = "#{field_name}_" if field_name.in? %w(
-      abstract
-      const
-      else
-      struct
-    )
+                                       abstract
+                                       const
+                                       else
+                                       struct
+                                     )
     {field_name, field_type, default_value}
   end
   if fields.empty?
