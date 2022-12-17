@@ -21,7 +21,7 @@ pub struct Lexer<'s, 'f> {
     wants_symbol: bool,
 
     reader: CharReader<'s>,
-    token: Token<'s, 'f>,
+    pub token: Token<'s, 'f>,
     temp_token: Token<'s, 'f>,
     line_number: usize,
     column_number: usize,
@@ -66,10 +66,6 @@ impl<'s, 'f> Lexer<'s, 'f> {
             token_end_location: None,
             heredocs: Vec::new(),
         }
-    }
-
-    pub fn token(&self) -> &Token<'s, 'f> {
-        &self.token
     }
 
     pub fn next_token(&mut self) -> Result<'f, &Token<'s, 'f>> {
@@ -1461,11 +1457,11 @@ impl<'s, 'f> Lexer<'s, 'f> {
         }
     }
 
-    fn next_char_no_column_increment(&mut self) -> char {
+    pub fn next_char_no_column_increment(&mut self) -> char {
         self.reader.next_char()
     }
 
-    fn next_char(&mut self) -> char {
+    pub fn next_char(&mut self) -> char {
         self.incr_column_number();
         self.next_char_no_column_increment()
     }

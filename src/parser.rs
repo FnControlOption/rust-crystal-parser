@@ -6,7 +6,7 @@ use crate::ast::*;
 use crate::error::Result;
 use crate::lexer::{Lexer, Raise, RaiseAt};
 use crate::location::Location;
-use crate::token::{Keyword, Op, TokenKind, TokenValue};
+use crate::token::{DelimiterValue, Keyword, Op, TokenKind, TokenValue};
 
 struct Unclosed<'f> {
     name: Vec<char>,
@@ -93,7 +93,7 @@ impl<'s, 'f> Parser<'s, 'f> {
     }
 
     fn parse_expressions(&mut self) -> Result<'f, AstNodeBox<'f>> {
-        self.preserve_stop_on_do(|parser| parser.parse_expressions_internal())
+        self.preserve_stop_on_do(|p| p.parse_expressions_internal())
     }
 
     fn parse_expressions_internal(&mut self) -> Result<'f, AstNodeBox<'f>> {
@@ -104,8 +104,8 @@ impl<'s, 'f> Parser<'s, 'f> {
         todo!("parse_or")
     }
 
-    fn is_multi_assign_target(exp: AstNodeRef<'_, '_>) -> bool {
-        match exp.to_ref() {
+    fn is_multi_assign_target(exp: AstRef<'_, '_>) -> bool {
+        match exp {
             AstRef::Underscore(_)
             | AstRef::Var(_)
             | AstRef::InstanceVar(_)
@@ -125,8 +125,8 @@ impl<'s, 'f> Parser<'s, 'f> {
         }
     }
 
-    fn is_multi_assign_middle(exp: AstNodeRef<'_, '_>) -> bool {
-        match exp.to_ref() {
+    fn is_multi_assign_middle(exp: AstRef<'_, '_>) -> bool {
+        match exp {
             AstRef::Assign(_) => true,
             AstRef::Call(call) => call.name.last().map(|c| *c == '=').unwrap_or(false),
             _ => false,
@@ -134,15 +134,14 @@ impl<'s, 'f> Parser<'s, 'f> {
     }
 
     fn multi_assign_left_hand(&mut self, exp: AstNodeBox<'f>) -> Result<'f, AstNodeBox<'f>> {
-        if exp.tag() == AstTag::Path {
-            let location = exp.location().unwrap();
-            return self.raise_at(
-                "can't assign to constant in multiple assignment",
-                location.as_ref(),
-            );
-        }
-
         let exp: AstNodeBox<'f> = match exp.to_box() {
+            AstBox::Path(path) => {
+                let location = path.location().unwrap();
+                return self.raise_at(
+                    "can't assign to constant in multiple assignment",
+                    location.as_ref(),
+                );
+            }
             AstBox::Call(call) => match call.obj {
                 None if call.args.is_empty() => {
                     let location = call.location();
@@ -162,12 +161,20 @@ impl<'s, 'f> Parser<'s, 'f> {
                             location.as_ref(),
                         );
                     }
-                    exp => exp.into(),
+                    obj => obj.into(),
                 },
                 None => call,
             },
             exp => exp.into(),
         };
+
+        if let AstRef::Var(var) = exp.to_ref() {
+            if var.name == &['s', 'e', 'l', 'f'] {
+                let location = var.location().unwrap();
+                return self.raise_at("can't change the value of self", location.as_ref());
+            }
+            self.push_var(var.to_ref());
+        }
 
         Ok(exp)
     }
@@ -183,7 +190,7 @@ impl<'s, 'f> Parser<'s, 'f> {
         self.check_void_expression_keyword()?;
         let right = if self.is_end_token()
             || matches!(
-                self.lexer.token().kind,
+                self.lexer.token.kind,
                 TokenKind::Op(Op::Rparen)
                     | TokenKind::Op(Op::Comma)
                     | TokenKind::Op(Op::Semicolon)
@@ -201,8 +208,102 @@ impl<'s, 'f> Parser<'s, 'f> {
         Ok(range)
     }
 
-    fn is_end_token(&mut self) -> bool {
-        todo!("is_end_token")
+    fn next_comes_colon_space(&mut self) -> bool {
+        if self.no_type_declaration != 0 {
+            return false;
+        }
+
+        let pos = self.lexer.current_pos();
+        while self.lexer.current_char().is_ascii_whitespace() {
+            self.lexer.next_char_no_column_increment();
+        }
+        let mut comes_colon_space = self.lexer.current_char() == ':';
+        if comes_colon_space {
+            self.lexer.next_char_no_column_increment();
+            comes_colon_space = self.lexer.current_char().is_ascii_whitespace();
+        }
+        self.lexer.set_current_pos(pos);
+        comes_colon_space
+    }
+
+    fn check_not_inside_def<F, T>(&mut self, message: &'_ str, mut f: F) -> Result<'f, T>
+    where
+        F: FnMut(&mut Self) -> Result<'f, T>,
+    {
+        if self.def_nest == 0 && self.fun_nest == 0 {
+            f(self)
+        } else {
+            let suffix = if self.def_nest > 0 {
+                " inside def"
+            } else {
+                " inside fun"
+            };
+            let token = &self.lexer.token;
+            self.raise_at(
+                format!("{message}{suffix}"),
+                (token.line_number, token.column_number),
+            )
+        }
+    }
+
+    fn is_inside_def(&self) -> bool {
+        self.def_nest > 0
+    }
+
+    fn is_inside_fun(&self) -> bool {
+        self.fun_nest > 0
+    }
+
+    fn call_block_arg_follows(&self) -> bool {
+        self.lexer.token.kind == TokenKind::Op(Op::Amp)
+            && !self.lexer.current_char().is_ascii_whitespace()
+    }
+
+    fn is_statement_end(&self) -> bool {
+        let token = &self.lexer.token;
+        matches!(
+            token.kind,
+            TokenKind::Newline | TokenKind::Op(Op::Semicolon)
+        ) || token.is_keyword(Keyword::End)
+    }
+
+    fn check_not_pipe_before_proc_literal_body(&mut self) -> Result<'f, ()> {
+        if self.lexer.token.kind == TokenKind::Op(Op::Bar) {
+            let location = self.lexer.token.location();
+            self.lexer.next_token_skip_space()?;
+            let mut msg = String::new();
+            msg.push_str(
+                "unexpected token: \"|\", proc literals specify their parameters like this: ->(",
+            );
+            if self.lexer.token.kind == TokenKind::Ident {
+                msg.push_str(&self.lexer.token.value.to_string());
+                msg.push_str(" : Type");
+                self.lexer.next_token_skip_space_or_newline()?;
+                if self.lexer.token.kind == TokenKind::Op(Op::Comma) {
+                    msg.push_str(", ...");
+                }
+            } else {
+                msg.push_str("param : Type");
+            }
+            msg.push_str(") { ... }");
+            self.raise_at(msg, location.as_ref())
+        } else {
+            Ok(())
+        }
+    }
+
+    fn is_named_tuple_start(&self) -> bool {
+        matches!(self.lexer.token.kind, TokenKind::Ident | TokenKind::Const)
+            && self.lexer.current_char() == ':'
+            && self.lexer.peek_next_char() != ':'
+    }
+
+    fn is_string_literal_start(&self) -> bool {
+        self.lexer.token.kind == TokenKind::DelimiterStart
+            && matches!(
+                self.lexer.token.delimiter_state.value,
+                DelimiterValue::String(_)
+            )
     }
 
     fn preserve_stop_on_do<F, T>(&mut self, f: F) -> T
@@ -223,12 +324,12 @@ impl<'s, 'f> Parser<'s, 'f> {
         value
     }
 
-    fn next_comes_colon_space(&mut self) -> bool {
-        if self.no_type_declaration != 0 {
-            return false;
-        }
+    fn is_end_token(&mut self) -> bool {
+        todo!("is_end_token")
+    }
 
-        todo!("next_comes_colon_space");
+    fn push_var(&mut self, _node: AstRef<'_, 'f>) {
+        todo!("push_var")
     }
 
     fn is_var_in_scope(&self, name: Vec<char>) -> bool {
@@ -248,11 +349,10 @@ impl<'s, 'f> Parser<'s, 'f> {
     }
 
     fn check_void_expression_keyword(&mut self) -> Result<'f, ()> {
-        if let TokenValue::Keyword(keyword) = self.lexer.token().value {
+        if let TokenValue::Keyword(keyword) = self.lexer.token.value {
             if matches!(keyword, Keyword::Break | Keyword::Next | Keyword::Return) {
                 if !self.next_comes_colon_space() {
-                    let token = self.lexer.token();
-                    return self.raise_at("void value expression", token);
+                    return self.raise_at("void value expression", &self.lexer.token);
                     // TODO: keyword.to_string().len()
                 }
             }
@@ -261,7 +361,7 @@ impl<'s, 'f> Parser<'s, 'f> {
     }
 
     fn check_any(&self, token_kinds: &[TokenKind]) -> Result<'f, ()> {
-        let token = self.lexer.token();
+        let token = &self.lexer.token;
         for kind in token_kinds {
             if token.kind == *kind {
                 return Ok(());
@@ -284,7 +384,7 @@ impl<'s, 'f> Parser<'s, 'f> {
     }
 
     fn check(&self, token_kind: TokenKind) -> Result<'f, ()> {
-        let token = self.lexer.token();
+        let token = &self.lexer.token;
         if token_kind != token.kind {
             self.raise_at(
                 format!("expecting token '{token_kind}', not '{token}'"),
@@ -296,7 +396,7 @@ impl<'s, 'f> Parser<'s, 'f> {
     }
 
     fn check_ident(&self, value: Keyword) -> Result<'f, ()> {
-        let token = self.lexer.token();
+        let token = &self.lexer.token;
         if !token.is_keyword(value) {
             self.raise_at(
                 format!("expecting identifier '{value}', not '{token}'"),
@@ -309,14 +409,12 @@ impl<'s, 'f> Parser<'s, 'f> {
 
     fn check_any_ident(&self) -> Result<'f, Vec<char>> {
         self.check(TokenKind::Ident)?;
-        let token = self.lexer.token();
-        Ok(token.value.to_string().chars().collect())
+        Ok(self.lexer.token.value.to_string().chars().collect())
     }
 
     fn check_const(&self) -> Result<'f, Vec<char>> {
         self.check(TokenKind::Const)?;
-        let token = self.lexer.token();
-        Ok(token.value.to_string().chars().collect())
+        Ok(self.lexer.token.value.to_string().chars().collect())
     }
 
     fn unexpected_token<T>(&self) -> Result<'f, T> {
@@ -324,7 +422,7 @@ impl<'s, 'f> Parser<'s, 'f> {
     }
 
     fn unexpected_token2<T>(&self, msg: Option<&str>) -> Result<'f, T> {
-        let token = self.lexer.token();
+        let token = &self.lexer.token;
         let mut message = String::new();
         message.push_str("unexpected token: ");
         if token.kind == TokenKind::Eof {

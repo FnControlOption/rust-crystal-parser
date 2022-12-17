@@ -1,6 +1,7 @@
 use crate::ast::NumberKind;
 use crate::location::Location;
 use std::fmt;
+use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Keyword {
@@ -597,7 +598,7 @@ pub struct Token<'s, 'f> {
     pub raw: &'s [char],
     pub start: usize,
     pub invalid_escape: bool,
-    location: Option<Location<'f>>,
+    location: Option<Rc<Location<'f>>>,
 }
 
 impl<'s, 'f> Default for Token<'s, 'f> {
@@ -622,18 +623,18 @@ impl<'s, 'f> Default for Token<'s, 'f> {
 }
 
 impl<'s, 'f> Token<'s, 'f> {
-    pub fn location(&mut self) -> &Location {
+    pub fn location(&mut self) -> Rc<Location<'f>> {
         if self.location.is_none() {
-            self.location = Some(Location::new(
+            self.location = Some(Rc::new(Location::new(
                 self.filename.clone(),
                 self.line_number,
                 self.column_number,
-            ));
+            )));
         }
-        self.location.as_ref().unwrap()
+        self.location.as_ref().unwrap().clone()
     }
 
-    pub fn set_location(&mut self, location: Option<Location<'f>>) {
+    pub fn set_location(&mut self, location: Option<Rc<Location<'f>>>) {
         self.location = location;
     }
 

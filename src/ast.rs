@@ -23,12 +23,12 @@ pub trait AstNode<'f>: fmt::Debug {
     fn to_ref<'a>(&'a self) -> AstRef<'a, 'f>;
 }
 
-pub trait Relocatable<'f, L> {
+pub trait At<'f, L> {
     fn at(&mut self, location: L);
     fn at_end(&mut self, location: L);
 }
 
-impl<'f, T> Relocatable<'f, Location<'f>> for T
+impl<'f, T> At<'f, Location<'f>> for T
 where
     T: AstNode<'f>,
 {
@@ -41,7 +41,7 @@ where
     }
 }
 
-// impl<'f, T> Relocatable<'f, AstNodeRef<'_, 'f>> for T
+// impl<'f, T> At<'f, AstNodeRef<'_, 'f>> for T
 // where
 //     T: AstNode<'f>,
 // {
