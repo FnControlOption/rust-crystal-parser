@@ -3,6 +3,8 @@ use std::{fmt, rc::Rc};
 
 pub type AstNodeBox<'f> = Box<dyn AstNode<'f> + 'f>;
 
+pub type AstNodeRef<'a, 'f> = &'a dyn AstNode<'f>;
+
 pub trait AstNode<'f>: fmt::Debug {
     fn location(&self) -> Option<Rc<Location<'f>>>;
     fn set_location(&mut self, location: Option<Rc<Location<'f>>>);
@@ -10,34 +12,51 @@ pub trait AstNode<'f>: fmt::Debug {
     fn end_location(&self) -> Option<Rc<Location<'f>>>;
     fn set_end_location(&mut self, end_location: Option<Rc<Location<'f>>>);
 
-    fn at(&mut self, location: Location<'f>) {
-        self.set_location(Some(Rc::new(location)));
-    }
-
-    fn at_node(&'_ mut self, node: &'_ dyn AstNode<'f>) {
-        self.set_location(node.location());
-        self.set_end_location(node.end_location());
-    }
-
-    fn at_end(&mut self, end_location: Location<'f>) {
-        self.set_end_location(Some(Rc::new(end_location)));
-    }
-
-    fn at_node_end(&'_ mut self, node: &'_ dyn AstNode<'f>) {
-        self.set_end_location(node.end_location());
-    }
-
-    fn tag(&self) -> AstNodeTag;
+    fn tag(&self) -> AstTag;
 
     fn is_control_expression(&self) -> bool {
         CONTROL_EXPRESSIONS.contains(&self.tag())
     }
 
-    fn to_box_enum(self: Box<Self>) -> AstNodeBoxEnum<'f>;
+    fn to_box(self: Box<Self>) -> AstBox<'f>;
+
+    fn to_ref<'a>(&'a self) -> AstRef<'a, 'f>;
 }
 
+pub trait Relocatable<'f, L> {
+    fn at(&mut self, location: L);
+    fn at_end(&mut self, location: L);
+}
+
+impl<'f, T> Relocatable<'f, Location<'f>> for T
+where
+    T: AstNode<'f>,
+{
+    fn at(&mut self, location: Location<'f>) {
+        self.set_location(Some(Rc::new(location)));
+    }
+
+    fn at_end(&mut self, location: Location<'f>) {
+        self.set_location(Some(Rc::new(location)));
+    }
+}
+
+// impl<'f, T> Relocatable<'f, AstNodeRef<'_, 'f>> for T
+// where
+//     T: AstNode<'f>,
+// {
+//     fn at(&mut self, node: AstNodeRef<'_, 'f>) {
+//         self.set_location(node.location());
+//         self.set_end_location(node.end_location());
+//     }
+
+//     fn at_end(&mut self, node: AstNodeRef<'_, 'f>) {
+//         self.set_end_location(node.end_location());
+//     }
+// }
+
 #[derive(Clone, Copy, Debug, PartialEq)]
-pub enum AstNodeTag {
+pub enum AstTag {
     Nop,
     Expressions,
     NilLiteral,
@@ -134,7 +153,7 @@ pub enum AstNodeTag {
 }
 
 #[derive(Debug)]
-pub enum AstNodeBoxEnum<'f> {
+pub enum AstBox<'f> {
     Nop(Box<Nop<'f>>),
     Expressions(Box<Expressions<'f>>),
     NilLiteral(Box<NilLiteral<'f>>),
@@ -230,6 +249,303 @@ pub enum AstNodeBoxEnum<'f> {
     AsmOperand(Box<AsmOperand<'f>>),
 }
 
+#[derive(Debug)]
+pub enum AstRef<'a, 'f> {
+    Nop(&'a Nop<'f>),
+    Expressions(&'a Expressions<'f>),
+    NilLiteral(&'a NilLiteral<'f>),
+    BoolLiteral(&'a BoolLiteral<'f>),
+    NumberLiteral(&'a NumberLiteral<'f>),
+    CharLiteral(&'a CharLiteral<'f>),
+    StringLiteral(&'a StringLiteral<'f>),
+    StringInterpolation(&'a StringInterpolation<'f>),
+    SymbolLiteral(&'a SymbolLiteral<'f>),
+    ArrayLiteral(&'a ArrayLiteral<'f>),
+    HashLiteral(&'a HashLiteral<'f>),
+    NamedTupleLiteral(&'a NamedTupleLiteral<'f>),
+    RangeLiteral(&'a RangeLiteral<'f>),
+    RegexLiteral(&'a RegexLiteral<'f>),
+    TupleLiteral(&'a TupleLiteral<'f>),
+    Var(&'a Var<'f>),
+    Block(&'a Block<'f>),
+    Call(&'a Call<'f>),
+    NamedArgument(&'a NamedArgument<'f>),
+    If(&'a If<'f>),
+    Unless(&'a Unless<'f>),
+    Assign(&'a Assign<'f>),
+    OpAssign(&'a OpAssign<'f>),
+    MultiAssign(&'a MultiAssign<'f>),
+    InstanceVar(&'a InstanceVar<'f>),
+    ReadInstanceVar(&'a ReadInstanceVar<'f>),
+    ClassVar(&'a ClassVar<'f>),
+    Global(&'a Global<'f>),
+    And(&'a And<'f>),
+    Or(&'a Or<'f>),
+    Arg(&'a Arg<'f>),
+    ProcNotation(&'a ProcNotation<'f>),
+    Def(&'a Def<'f>),
+    Macro(&'a Macro<'f>),
+    Not(&'a Not<'f>),
+    PointerOf(&'a PointerOf<'f>),
+    SizeOf(&'a SizeOf<'f>),
+    InstanceSizeOf(&'a InstanceSizeOf<'f>),
+    Out(&'a Out<'f>),
+    OffsetOf(&'a OffsetOf<'f>),
+    VisibilityModifier(&'a VisibilityModifier<'f>),
+    IsA(&'a IsA<'f>),
+    RespondsTo(&'a RespondsTo<'f>),
+    Require(&'a Require<'f>),
+    When(&'a When<'f>),
+    Case(&'a Case<'f>),
+    Select(&'a Select<'f>),
+    ImplicitObj(&'a ImplicitObj<'f>),
+    Path(&'a Path<'f>),
+    ClassDef(&'a ClassDef<'f>),
+    ModuleDef(&'a ModuleDef<'f>),
+    AnnotationDef(&'a AnnotationDef<'f>),
+    While(&'a While<'f>),
+    Until(&'a Until<'f>),
+    Generic(&'a Generic<'f>),
+    TypeDeclaration(&'a TypeDeclaration<'f>),
+    UninitializedVar(&'a UninitializedVar<'f>),
+    Rescue(&'a Rescue<'f>),
+    ExceptionHandler(&'a ExceptionHandler<'f>),
+    ProcLiteral(&'a ProcLiteral<'f>),
+    ProcPointer(&'a ProcPointer<'f>),
+    Union(&'a Union<'f>),
+    Self_(&'a Self_<'f>),
+    Return(&'a Return<'f>),
+    Break(&'a Break<'f>),
+    Next(&'a Next<'f>),
+    Yield(&'a Yield<'f>),
+    Include(&'a Include<'f>),
+    Extend(&'a Extend<'f>),
+    LibDef(&'a LibDef<'f>),
+    FunDef(&'a FunDef<'f>),
+    TypeDef(&'a TypeDef<'f>),
+    CStructOrUnionDef(&'a CStructOrUnionDef<'f>),
+    EnumDef(&'a EnumDef<'f>),
+    ExternalVar(&'a ExternalVar<'f>),
+    Alias(&'a Alias<'f>),
+    Metaclass(&'a Metaclass<'f>),
+    Cast(&'a Cast<'f>),
+    NilableCast(&'a NilableCast<'f>),
+    TypeOf(&'a TypeOf<'f>),
+    Annotation(&'a Annotation<'f>),
+    MacroExpression(&'a MacroExpression<'f>),
+    MacroLiteral(&'a MacroLiteral<'f>),
+    MacroVerbatim(&'a MacroVerbatim<'f>),
+    MacroIf(&'a MacroIf<'f>),
+    MacroFor(&'a MacroFor<'f>),
+    MacroVar(&'a MacroVar<'f>),
+    Underscore(&'a Underscore<'f>),
+    Splat(&'a Splat<'f>),
+    DoubleSplat(&'a DoubleSplat<'f>),
+    MagicConstant(&'a MagicConstant<'f>),
+    Asm(&'a Asm<'f>),
+    AsmOperand(&'a AsmOperand<'f>),
+}
+
+impl<'f> From<AstBox<'f>> for AstNodeBox<'f> {
+    fn from(value: AstBox<'f>) -> Self {
+        match value {
+            AstBox::Nop(node) => node,
+            AstBox::Expressions(node) => node,
+            AstBox::NilLiteral(node) => node,
+            AstBox::BoolLiteral(node) => node,
+            AstBox::NumberLiteral(node) => node,
+            AstBox::CharLiteral(node) => node,
+            AstBox::StringLiteral(node) => node,
+            AstBox::StringInterpolation(node) => node,
+            AstBox::SymbolLiteral(node) => node,
+            AstBox::ArrayLiteral(node) => node,
+            AstBox::HashLiteral(node) => node,
+            AstBox::NamedTupleLiteral(node) => node,
+            AstBox::RangeLiteral(node) => node,
+            AstBox::RegexLiteral(node) => node,
+            AstBox::TupleLiteral(node) => node,
+            AstBox::Var(node) => node,
+            AstBox::Block(node) => node,
+            AstBox::Call(node) => node,
+            AstBox::NamedArgument(node) => node,
+            AstBox::If(node) => node,
+            AstBox::Unless(node) => node,
+            AstBox::Assign(node) => node,
+            AstBox::OpAssign(node) => node,
+            AstBox::MultiAssign(node) => node,
+            AstBox::InstanceVar(node) => node,
+            AstBox::ReadInstanceVar(node) => node,
+            AstBox::ClassVar(node) => node,
+            AstBox::Global(node) => node,
+            AstBox::And(node) => node,
+            AstBox::Or(node) => node,
+            AstBox::Arg(node) => node,
+            AstBox::ProcNotation(node) => node,
+            AstBox::Def(node) => node,
+            AstBox::Macro(node) => node,
+            AstBox::Not(node) => node,
+            AstBox::PointerOf(node) => node,
+            AstBox::SizeOf(node) => node,
+            AstBox::InstanceSizeOf(node) => node,
+            AstBox::Out(node) => node,
+            AstBox::OffsetOf(node) => node,
+            AstBox::VisibilityModifier(node) => node,
+            AstBox::IsA(node) => node,
+            AstBox::RespondsTo(node) => node,
+            AstBox::Require(node) => node,
+            AstBox::When(node) => node,
+            AstBox::Case(node) => node,
+            AstBox::Select(node) => node,
+            AstBox::ImplicitObj(node) => node,
+            AstBox::Path(node) => node,
+            AstBox::ClassDef(node) => node,
+            AstBox::ModuleDef(node) => node,
+            AstBox::AnnotationDef(node) => node,
+            AstBox::While(node) => node,
+            AstBox::Until(node) => node,
+            AstBox::Generic(node) => node,
+            AstBox::TypeDeclaration(node) => node,
+            AstBox::UninitializedVar(node) => node,
+            AstBox::Rescue(node) => node,
+            AstBox::ExceptionHandler(node) => node,
+            AstBox::ProcLiteral(node) => node,
+            AstBox::ProcPointer(node) => node,
+            AstBox::Union(node) => node,
+            AstBox::Self_(node) => node,
+            AstBox::Return(node) => node,
+            AstBox::Break(node) => node,
+            AstBox::Next(node) => node,
+            AstBox::Yield(node) => node,
+            AstBox::Include(node) => node,
+            AstBox::Extend(node) => node,
+            AstBox::LibDef(node) => node,
+            AstBox::FunDef(node) => node,
+            AstBox::TypeDef(node) => node,
+            AstBox::CStructOrUnionDef(node) => node,
+            AstBox::EnumDef(node) => node,
+            AstBox::ExternalVar(node) => node,
+            AstBox::Alias(node) => node,
+            AstBox::Metaclass(node) => node,
+            AstBox::Cast(node) => node,
+            AstBox::NilableCast(node) => node,
+            AstBox::TypeOf(node) => node,
+            AstBox::Annotation(node) => node,
+            AstBox::MacroExpression(node) => node,
+            AstBox::MacroLiteral(node) => node,
+            AstBox::MacroVerbatim(node) => node,
+            AstBox::MacroIf(node) => node,
+            AstBox::MacroFor(node) => node,
+            AstBox::MacroVar(node) => node,
+            AstBox::Underscore(node) => node,
+            AstBox::Splat(node) => node,
+            AstBox::DoubleSplat(node) => node,
+            AstBox::MagicConstant(node) => node,
+            AstBox::Asm(node) => node,
+            AstBox::AsmOperand(node) => node,
+        }
+    }
+}
+
+impl<'a, 'f> From<AstRef<'a, 'f>> for AstNodeRef<'a, 'f> {
+    fn from(value: AstRef<'a, 'f>) -> Self {
+        match value {
+            AstRef::Nop(node) => node,
+            AstRef::Expressions(node) => node,
+            AstRef::NilLiteral(node) => node,
+            AstRef::BoolLiteral(node) => node,
+            AstRef::NumberLiteral(node) => node,
+            AstRef::CharLiteral(node) => node,
+            AstRef::StringLiteral(node) => node,
+            AstRef::StringInterpolation(node) => node,
+            AstRef::SymbolLiteral(node) => node,
+            AstRef::ArrayLiteral(node) => node,
+            AstRef::HashLiteral(node) => node,
+            AstRef::NamedTupleLiteral(node) => node,
+            AstRef::RangeLiteral(node) => node,
+            AstRef::RegexLiteral(node) => node,
+            AstRef::TupleLiteral(node) => node,
+            AstRef::Var(node) => node,
+            AstRef::Block(node) => node,
+            AstRef::Call(node) => node,
+            AstRef::NamedArgument(node) => node,
+            AstRef::If(node) => node,
+            AstRef::Unless(node) => node,
+            AstRef::Assign(node) => node,
+            AstRef::OpAssign(node) => node,
+            AstRef::MultiAssign(node) => node,
+            AstRef::InstanceVar(node) => node,
+            AstRef::ReadInstanceVar(node) => node,
+            AstRef::ClassVar(node) => node,
+            AstRef::Global(node) => node,
+            AstRef::And(node) => node,
+            AstRef::Or(node) => node,
+            AstRef::Arg(node) => node,
+            AstRef::ProcNotation(node) => node,
+            AstRef::Def(node) => node,
+            AstRef::Macro(node) => node,
+            AstRef::Not(node) => node,
+            AstRef::PointerOf(node) => node,
+            AstRef::SizeOf(node) => node,
+            AstRef::InstanceSizeOf(node) => node,
+            AstRef::Out(node) => node,
+            AstRef::OffsetOf(node) => node,
+            AstRef::VisibilityModifier(node) => node,
+            AstRef::IsA(node) => node,
+            AstRef::RespondsTo(node) => node,
+            AstRef::Require(node) => node,
+            AstRef::When(node) => node,
+            AstRef::Case(node) => node,
+            AstRef::Select(node) => node,
+            AstRef::ImplicitObj(node) => node,
+            AstRef::Path(node) => node,
+            AstRef::ClassDef(node) => node,
+            AstRef::ModuleDef(node) => node,
+            AstRef::AnnotationDef(node) => node,
+            AstRef::While(node) => node,
+            AstRef::Until(node) => node,
+            AstRef::Generic(node) => node,
+            AstRef::TypeDeclaration(node) => node,
+            AstRef::UninitializedVar(node) => node,
+            AstRef::Rescue(node) => node,
+            AstRef::ExceptionHandler(node) => node,
+            AstRef::ProcLiteral(node) => node,
+            AstRef::ProcPointer(node) => node,
+            AstRef::Union(node) => node,
+            AstRef::Self_(node) => node,
+            AstRef::Return(node) => node,
+            AstRef::Break(node) => node,
+            AstRef::Next(node) => node,
+            AstRef::Yield(node) => node,
+            AstRef::Include(node) => node,
+            AstRef::Extend(node) => node,
+            AstRef::LibDef(node) => node,
+            AstRef::FunDef(node) => node,
+            AstRef::TypeDef(node) => node,
+            AstRef::CStructOrUnionDef(node) => node,
+            AstRef::EnumDef(node) => node,
+            AstRef::ExternalVar(node) => node,
+            AstRef::Alias(node) => node,
+            AstRef::Metaclass(node) => node,
+            AstRef::Cast(node) => node,
+            AstRef::NilableCast(node) => node,
+            AstRef::TypeOf(node) => node,
+            AstRef::Annotation(node) => node,
+            AstRef::MacroExpression(node) => node,
+            AstRef::MacroLiteral(node) => node,
+            AstRef::MacroVerbatim(node) => node,
+            AstRef::MacroIf(node) => node,
+            AstRef::MacroFor(node) => node,
+            AstRef::MacroVar(node) => node,
+            AstRef::Underscore(node) => node,
+            AstRef::Splat(node) => node,
+            AstRef::DoubleSplat(node) => node,
+            AstRef::MagicConstant(node) => node,
+            AstRef::Asm(node) => node,
+            AstRef::AsmOperand(node) => node,
+        }
+    }
+}
+
 macro_rules! Node {
     ($name:ident) => {
         Node!($name;);
@@ -260,12 +576,16 @@ macro_rules! Node {
                 self.end_location = end_location;
             }
 
-            fn tag(&self) -> AstNodeTag {
-                AstNodeTag::$name
+            fn tag(&self) -> AstTag {
+                AstTag::$name
             }
 
-            fn to_box_enum(self: Box<Self>) -> AstNodeBoxEnum<'f> {
-                AstNodeBoxEnum::$name(self)
+            fn to_box(self: Box<Self>) -> AstBox<'f> {
+                AstBox::$name(self)
+            }
+
+            fn to_ref<'a>(&'a self) -> AstRef<'a, 'f> {
+                AstRef::$name(self)
             }
         }
     };
@@ -1702,7 +2022,7 @@ impl<'f> Self_<'f> {
 
 macro_rules! ControlExpressions {
     ($($name:ident;)+) => {
-        const CONTROL_EXPRESSIONS: &[AstNodeTag] = &[$(AstNodeTag::$name),+];
+        const CONTROL_EXPRESSIONS: &[AstTag] = &[$(AstTag::$name),+];
 
         $(Node!(
             $name;
@@ -2183,15 +2503,15 @@ pub enum Visibility {
 
 #[test]
 fn it_works() {
-    let mut node = Nop::new();
-    node.at(Location::new("foo", 12, 34));
-    node.at_node_end(Nop::new().as_ref());
+    // let mut node = Nop::new();
+    // node.at(Location::new("foo", 12, 34));
+    // node.at_node_end(Nop::new().as_ref());
 
     let node: AstNodeBox = Nop::new();
-    assert_eq!(node.tag(), AstNodeTag::Nop);
+    assert_eq!(node.tag(), AstTag::Nop);
     let node: Box<Nop> = Nop::new();
-    assert_eq!(node.tag(), AstNodeTag::Nop);
+    assert_eq!(node.tag(), AstTag::Nop);
 
-    // let node: AstNodeBox = Return::new(None);
-    // assert!(node.is_control_expression());
+    let node: AstNodeBox = Return::new(None);
+    assert!(node.is_control_expression());
 }

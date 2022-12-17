@@ -246,9 +246,8 @@ impl<'s, 'f> Lexer<'s, 'f> {
                     '=' => {
                         self.next_char2(Op(PercentEq));
                     }
-                    '(' | '[' | '{' | '<' | '|' => {
-                        self.delimited_pair(DelimiterValue::String((c, closing_char(c))), start)
-                    }
+                    '(' | '[' | '{' | '<' | '|' => self
+                        .delimited_pair(DelimiterValue::String((c, Self::closing_char(c))), start),
                     'i' => {
                         let c = self.peek_next_char();
                         if matches!(c, '(' | '{' | '[' | '<' | '|') {
@@ -256,7 +255,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
                             self.next_char2(SymbolArrayStart);
                             self.set_token_raw_from_start(start);
                             self.token.delimiter_state = DelimiterState {
-                                value: DelimiterValue::SymbolArray((c, closing_char(c))),
+                                value: DelimiterValue::SymbolArray((c, Self::closing_char(c))),
                                 ..Default::default()
                             };
                         } else {
@@ -268,7 +267,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
                         if matches!(c, '(' | '{' | '[' | '<' | '|') {
                             self.next_char();
                             self.delimited_pair(
-                                DelimiterValue::String((c, closing_char(c))),
+                                DelimiterValue::String((c, Self::closing_char(c))),
                                 start,
                             );
                             self.token.delimiter_state.allow_escapes = false;
@@ -281,7 +280,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
                         if matches!(c, '(' | '{' | '[' | '<' | '|') {
                             self.next_char();
                             self.delimited_pair(
-                                DelimiterValue::String((c, closing_char(c))),
+                                DelimiterValue::String((c, Self::closing_char(c))),
                                 start,
                             );
                         } else {
@@ -291,7 +290,10 @@ impl<'s, 'f> Lexer<'s, 'f> {
                     'r' => {
                         let c = self.next_char();
                         if matches!(c, '(' | '[' | '{' | '<' | '|') {
-                            self.delimited_pair(DelimiterValue::Regex((c, closing_char(c))), start);
+                            self.delimited_pair(
+                                DelimiterValue::Regex((c, Self::closing_char(c))),
+                                start,
+                            );
                         } else {
                             return self.raise("unknown %r char");
                         }
@@ -300,7 +302,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
                         let c = self.next_char();
                         if matches!(c, '(' | '[' | '{' | '<' | '|') {
                             self.delimited_pair(
-                                DelimiterValue::Command((c, closing_char(c))),
+                                DelimiterValue::Command((c, Self::closing_char(c))),
                                 start,
                             );
                         } else {
@@ -314,7 +316,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
                             self.next_char2(StringArrayStart);
                             self.set_token_raw_from_start(start);
                             self.token.delimiter_state = DelimiterState {
-                                value: DelimiterValue::StringArray((c, closing_char(c))),
+                                value: DelimiterValue::StringArray((c, Self::closing_char(c))),
                                 ..Default::default()
                             };
                         } else {
@@ -705,7 +707,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
                         return self.check_ident_or_keyword(Keyword::If, start);
                     }
                     'n' => {
-                        if is_ident_part_or_end(self.peek_next_char()) {
+                        if Self::is_ident_part_or_end(self.peek_next_char()) {
                             match self.next_char() {
                                 'c' => {
                                     if self.char_sequence(&['l', 'u', 'd', 'e']) {
@@ -1013,7 +1015,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
                         match self.next_char() {
                             'D' => {
                                 if self.char_sequence(&['I', 'R', '_', '_']) {
-                                    if !is_ident_part_or_end(self.peek_next_char()) {
+                                    if !Self::is_ident_part_or_end(self.peek_next_char()) {
                                         self.next_char();
                                         self.token.kind = Magic(Dir);
                                         return Ok(&self.token);
@@ -1024,7 +1026,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
                                 if self
                                     .char_sequence(&['N', 'D', '_', 'L', 'I', 'N', 'E', '_', '_'])
                                 {
-                                    if !is_ident_part_or_end(self.peek_next_char()) {
+                                    if !Self::is_ident_part_or_end(self.peek_next_char()) {
                                         self.next_char();
                                         self.token.kind = Magic(EndLine);
                                         return Ok(&self.token);
@@ -1033,7 +1035,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
                             }
                             'F' => {
                                 if self.char_sequence(&['I', 'L', 'E', '_', '_']) {
-                                    if !is_ident_part_or_end(self.peek_next_char()) {
+                                    if !Self::is_ident_part_or_end(self.peek_next_char()) {
                                         self.next_char();
                                         self.token.kind = Magic(File);
                                         return Ok(&self.token);
@@ -1042,7 +1044,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
                             }
                             'L' => {
                                 if self.char_sequence(&['I', 'N', 'E', '_', '_']) {
-                                    if !is_ident_part_or_end(self.peek_next_char()) {
+                                    if !Self::is_ident_part_or_end(self.peek_next_char()) {
                                         self.next_char();
                                         self.token.kind = Magic(Line);
                                         return Ok(&self.token);
@@ -1053,7 +1055,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
                         }
                     }
                     _ => {
-                        if !is_ident_part(self.current_char()) {
+                        if !Self::is_ident_part(self.current_char()) {
                             self.token.kind = Underscore;
                             return Ok(&self.token);
                         }
@@ -1064,12 +1066,12 @@ impl<'s, 'f> Lexer<'s, 'f> {
             _ => {
                 if self.current_char().is_ascii_uppercase() {
                     let start = self.current_pos();
-                    while is_ident_part(self.next_char()) {
+                    while Self::is_ident_part(self.next_char()) {
                         // Nothing to do
                     }
                     self.token.kind = Const;
                     self.token.value = self.string_range(start);
-                } else if is_ident_start(self.current_char()) {
+                } else if Self::is_ident_start(self.current_char()) {
                     self.next_char();
                     self.scan_ident(start);
                 } else {
@@ -1203,7 +1205,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
         keyword: Keyword,
         start: usize,
     ) -> Result<'f, &Token<'s, 'f>> {
-        if is_ident_part_or_end(self.peek_next_char()) {
+        if Self::is_ident_part_or_end(self.peek_next_char()) {
             self.scan_ident(start);
         } else {
             self.next_char();
@@ -1214,7 +1216,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
     }
 
     fn scan_ident(&mut self, start: usize) {
-        while is_ident_part(self.current_char()) {
+        while Self::is_ident_part(self.current_char()) {
             self.next_char();
         }
         if matches!(self.current_char(), '?' | '!') && self.peek_next_char() != '=' {
@@ -1394,9 +1396,9 @@ impl<'s, 'f> Lexer<'s, 'f> {
                 self.next_char();
                 self.set_token_raw_from_start(start - 2);
             }
-            c if is_ident_start(c) => {
+            c if Self::is_ident_start(c) => {
                 let start = self.current_pos();
-                while is_ident_part(self.next_char()) {
+                while Self::is_ident_part(self.next_char()) {
                     // Nothing to do
                 }
                 if self.current_char() == '?'
@@ -1417,8 +1419,8 @@ impl<'s, 'f> Lexer<'s, 'f> {
     }
 
     fn consume_variable(&mut self, token_kind: TokenKind, start: usize) -> Result<'f, ()> {
-        if is_ident_start(self.current_char()) {
-            while is_ident_part(self.next_char()) {
+        if Self::is_ident_start(self.current_char()) {
+            while Self::is_ident_part(self.next_char()) {
                 // Nothing to do
             }
             self.token.kind = token_kind;
@@ -1554,8 +1556,30 @@ impl<'s, 'f> Lexer<'s, 'f> {
         &self.reader.string()[start_pos..end_pos]
     }
 
+    fn is_ident_start(c: char) -> bool {
+        c.is_ascii_alphabetic() || c == '_' || c > '\u{9F}'
+    }
+
+    fn is_ident_part(c: char) -> bool {
+        Self::is_ident_start(c) || c.is_ascii_digit()
+    }
+
+    fn is_ident(name: &[char]) -> bool {
+        name.first()
+            .map(|c| Self::is_ident_start(*c))
+            .unwrap_or(false)
+    }
+
+    pub fn is_setter(name: &[char]) -> bool {
+        Self::is_ident(name) && name.last().map(|c| *c == '=').unwrap_or(false)
+    }
+
+    fn is_ident_part_or_end(c: char) -> bool {
+        Self::is_ident_part(c) || c == '?' || c == '!'
+    }
+
     fn peek_not_ident_part_or_end_next_char(&mut self) -> bool {
-        if is_ident_part_or_end(self.peek_next_char()) {
+        if Self::is_ident_part_or_end(self.peek_next_char()) {
             return false;
         }
         if self.peek_next_char() == ':' {
@@ -1563,6 +1587,16 @@ impl<'s, 'f> Lexer<'s, 'f> {
         }
         self.next_char();
         true
+    }
+
+    fn closing_char(c: char) -> char {
+        match c {
+            '<' => '>',
+            '(' => ')',
+            '[' => ']',
+            '{' => '}',
+            _ => c,
+        }
     }
 
     pub fn skip_space(&mut self) -> Result<'f, ()> {
@@ -1662,8 +1696,8 @@ impl<'f> RaiseAt<'f, String, (usize, usize)> for Lexer<'_, 'f> {
     }
 }
 
-impl<'f> RaiseAt<'f, String, &Token<'_, 'f>> for Lexer<'_, 'f> {
-    fn raise_at<T>(&self, message: String, token: &Token<'_, 'f>) -> Result<'f, T> {
+impl<'f> RaiseAt<'f, String, &'_ Token<'_, 'f>> for Lexer<'_, 'f> {
+    fn raise_at<T>(&self, message: String, token: &'_ Token<'_, 'f>) -> Result<'f, T> {
         Err(SyntaxError::new(
             message,
             token.line_number,
@@ -1673,44 +1707,14 @@ impl<'f> RaiseAt<'f, String, &Token<'_, 'f>> for Lexer<'_, 'f> {
     }
 }
 
-impl<'f> RaiseAt<'f, String, &Location<'f>> for Lexer<'_, 'f> {
-    fn raise_at<T>(&self, message: String, location: &Location<'f>) -> Result<'f, T> {
+impl<'f> RaiseAt<'f, String, &'_ Location<'f>> for Lexer<'_, 'f> {
+    fn raise_at<T>(&self, message: String, location: &'_ Location<'f>) -> Result<'f, T> {
         Err(SyntaxError::new(
             message,
             location.line_number(),
             location.column_number(),
             location.filename(),
         ))
-    }
-}
-
-fn is_ident_start(c: char) -> bool {
-    c.is_ascii_alphabetic() || c == '_' || c > '\u{9F}'
-}
-
-fn is_ident_part(c: char) -> bool {
-    is_ident_start(c) || c.is_ascii_digit()
-}
-
-fn is_ident(name: &[char]) -> bool {
-    name.first().map(|c| is_ident_start(*c)).unwrap_or(false)
-}
-
-fn is_setter(name: &[char]) -> bool {
-    is_ident(name) && name.last().map(|c| *c == '=').unwrap_or(false)
-}
-
-fn is_ident_part_or_end(c: char) -> bool {
-    is_ident_part(c) || c == '?' || c == '!'
-}
-
-fn closing_char(c: char) -> char {
-    match c {
-        '<' => '>',
-        '(' => ')',
-        '[' => ']',
-        '{' => '}',
-        _ => c,
     }
 }
 

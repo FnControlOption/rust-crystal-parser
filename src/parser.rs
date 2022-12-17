@@ -6,7 +6,7 @@ use crate::ast::*;
 use crate::error::Result;
 use crate::lexer::{Lexer, Raise, RaiseAt};
 use crate::location::Location;
-use crate::token::{Keyword, TokenKind, TokenValue};
+use crate::token::{Keyword, Op, TokenKind, TokenValue};
 
 struct Unclosed<'f> {
     name: Vec<char>,
@@ -87,7 +87,140 @@ impl<'s, 'f> Parser<'s, 'f> {
 
     fn parse(&mut self) -> Result<'f, AstNodeBox<'f>> {
         self.lexer.next_token_skip_statement_end()?;
-        Ok(Nop::new())
+        let node = self.parse_expressions()?;
+        self.check(TokenKind::Eof)?;
+        Ok(node)
+    }
+
+    fn parse_expressions(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        self.preserve_stop_on_do(|parser| parser.parse_expressions_internal())
+    }
+
+    fn parse_expressions_internal(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        todo!("parse_expressions_internal")
+    }
+
+    fn parse_or(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        todo!("parse_or")
+    }
+
+    fn is_multi_assign_target(exp: AstNodeRef<'_, '_>) -> bool {
+        match exp.to_ref() {
+            AstRef::Underscore(_)
+            | AstRef::Var(_)
+            | AstRef::InstanceVar(_)
+            | AstRef::ClassVar(_)
+            | AstRef::Global(_)
+            | AstRef::Assign(_) => true,
+
+            AstRef::Call(call) => {
+                !call.has_parentheses
+                    && ((call.args.is_empty() && call.named_args.is_none())
+                        || Lexer::is_setter(&call.name)
+                        || call.name == &['[', ']']
+                        || call.name == &['[', ']', '='])
+            }
+
+            _ => false,
+        }
+    }
+
+    fn is_multi_assign_middle(exp: AstNodeRef<'_, '_>) -> bool {
+        match exp.to_ref() {
+            AstRef::Assign(_) => true,
+            AstRef::Call(call) => call.name.last().map(|c| *c == '=').unwrap_or(false),
+            _ => false,
+        }
+    }
+
+    fn multi_assign_left_hand(&mut self, exp: AstNodeBox<'f>) -> Result<'f, AstNodeBox<'f>> {
+        if exp.tag() == AstTag::Path {
+            let location = exp.location().unwrap();
+            return self.raise_at(
+                "can't assign to constant in multiple assignment",
+                location.as_ref(),
+            );
+        }
+
+        let exp: AstNodeBox<'f> = match exp.to_box() {
+            AstBox::Call(call) => match call.obj {
+                None if call.args.is_empty() => {
+                    let location = call.location();
+                    let end_location = call.end_location();
+                    let mut exp = Var::new(call.name);
+                    exp.set_location(location);
+                    exp.set_end_location(end_location);
+                    exp
+                }
+                Some(obj) => match obj.to_box() {
+                    AstBox::Global(global)
+                        if global.name == &['$', '~'] && call.name == &['[', ']'] =>
+                    {
+                        let location = global.location().unwrap();
+                        return self.raise_at(
+                            "global match data cannot be assigned to",
+                            location.as_ref(),
+                        );
+                    }
+                    exp => exp.into(),
+                },
+                None => call,
+            },
+            exp => exp.into(),
+        };
+
+        Ok(exp)
+    }
+
+    fn new_range(
+        &mut self,
+        exp: AstNodeBox<'f>,
+        location: Location<'f>,
+        exclusive: bool,
+    ) -> Result<'f, Box<RangeLiteral<'f>>> {
+        self.check_void_value(exp.as_ref(), &location)?;
+        self.lexer.next_token_skip_space()?;
+        self.check_void_expression_keyword()?;
+        let right = if self.is_end_token()
+            || matches!(
+                self.lexer.token().kind,
+                TokenKind::Op(Op::Rparen)
+                    | TokenKind::Op(Op::Comma)
+                    | TokenKind::Op(Op::Semicolon)
+                    | TokenKind::Op(Op::EqGt)
+                    | TokenKind::Newline
+            ) {
+            Nop::new()
+        } else {
+            self.parse_or()?
+        };
+        let end_location = right.end_location();
+        let mut range = RangeLiteral::new(exp, right, exclusive);
+        range.at(location);
+        range.set_end_location(end_location);
+        Ok(range)
+    }
+
+    fn is_end_token(&mut self) -> bool {
+        todo!("is_end_token")
+    }
+
+    fn preserve_stop_on_do<F, T>(&mut self, f: F) -> T
+    where
+        F: FnMut(&mut Self) -> T,
+    {
+        self.preserve_stop_on_do2(false, f)
+    }
+
+    fn preserve_stop_on_do2<F, T>(&mut self, new_value: bool, mut f: F) -> T
+    where
+        F: FnMut(&mut Self) -> T,
+    {
+        let old_stop_on_do = self.stop_on_do;
+        self.stop_on_do = new_value;
+        let value = f(self);
+        self.stop_on_do = old_stop_on_do;
+        value
     }
 
     fn next_comes_colon_space(&mut self) -> bool {
@@ -95,14 +228,18 @@ impl<'s, 'f> Parser<'s, 'f> {
             return false;
         }
 
-        todo!();
+        todo!("next_comes_colon_space");
     }
 
     fn is_var_in_scope(&self, name: Vec<char>) -> bool {
         self.var_scopes.last().unwrap().contains(&name)
     }
 
-    fn check_void_value(&self, exp: AstNodeBox<'f>, location: &Location<'f>) -> Result<'f, ()> {
+    fn check_void_value(
+        &self,
+        exp: AstNodeRef<'_, 'f>,
+        location: &'_ Location<'f>,
+    ) -> Result<'f, ()> {
         if exp.is_control_expression() {
             self.raise_at("void value expression", location)
         } else {
