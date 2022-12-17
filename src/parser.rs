@@ -9,7 +9,7 @@ use crate::location::Location;
 use crate::token::{DelimiterValue, Keyword, Op, TokenKind, TokenValue};
 
 struct Unclosed<'f> {
-    name: Vec<char>,
+    name: String,
     location: Location<'f>,
 }
 
@@ -20,8 +20,8 @@ pub struct Parser<'s, 'f> {
     fun_nest: usize,
     type_nest: usize,
     _wants_doc: bool,
-    block_arg_name: Option<Vec<char>>,
-    var_scopes: Vec<HashSet<Vec<char>>>,
+    block_arg_name: Option<String>,
+    var_scopes: Vec<HashSet<String>>,
     unclosed_stack: Vec<Unclosed<'f>>,
     calls_super: bool,
     calls_initialize: bool,
@@ -40,7 +40,7 @@ pub struct Parser<'s, 'f> {
     consuming_heredocs: bool,
     inside_interpolation: bool,
     stop_on_do: bool,
-    assigned_vars: Vec<Vec<char>>,
+    assigned_vars: Vec<String>,
 }
 
 impl<'s, 'f> Parser<'s, 'f> {
@@ -104,7 +104,7 @@ impl<'s, 'f> Parser<'s, 'f> {
         todo!("parse_or")
     }
 
-    fn is_multi_assign_target(exp: AstRef<'_, '_>) -> bool {
+    fn is_multi_assign_target(exp: AstRef<'_, 'f>) -> bool {
         match exp {
             AstRef::Underscore(_)
             | AstRef::Var(_)
@@ -117,24 +117,24 @@ impl<'s, 'f> Parser<'s, 'f> {
                 !call.has_parentheses
                     && ((call.args.is_empty() && call.named_args.is_none())
                         || Lexer::is_setter(&call.name)
-                        || call.name == &['[', ']']
-                        || call.name == &['[', ']', '='])
+                        || call.name == "[]"
+                        || call.name == "[]=")
             }
 
             _ => false,
         }
     }
 
-    fn is_multi_assign_middle(exp: AstRef<'_, '_>) -> bool {
+    fn is_multi_assign_middle(exp: AstRef<'_, 'f>) -> bool {
         match exp {
             AstRef::Assign(_) => true,
-            AstRef::Call(call) => call.name.last().map(|c| *c == '=').unwrap_or(false),
+            AstRef::Call(call) => call.name.ends_with('='),
             _ => false,
         }
     }
 
     fn multi_assign_left_hand(&mut self, exp: AstNodeBox<'f>) -> Result<'f, AstNodeBox<'f>> {
-        let exp: AstNodeBox<'f> = match exp.to_box() {
+        let exp: AstNodeBox<'f> = match exp.to_ast_box() {
             AstBox::Path(path) => {
                 let location = path.location().unwrap();
                 return self.raise_at(
@@ -151,10 +151,8 @@ impl<'s, 'f> Parser<'s, 'f> {
                     exp.set_end_location(end_location);
                     exp
                 }
-                Some(obj) => match obj.to_box() {
-                    AstBox::Global(global)
-                        if global.name == &['$', '~'] && call.name == &['[', ']'] =>
-                    {
+                Some(obj) => match obj.to_ast_box() {
+                    AstBox::Global(global) if global.name == "$~" && call.name == "[]" => {
                         let location = global.location().unwrap();
                         return self.raise_at(
                             "global match data cannot be assigned to",
@@ -168,12 +166,12 @@ impl<'s, 'f> Parser<'s, 'f> {
             exp => exp.into(),
         };
 
-        if let AstRef::Var(var) = exp.to_ref() {
-            if var.name == &['s', 'e', 'l', 'f'] {
+        if let AstRef::Var(var) = exp.to_ast_ref() {
+            if var.name == "self" {
                 let location = var.location().unwrap();
                 return self.raise_at("can't change the value of self", location.as_ref());
             }
-            self.push_var(var.to_ref());
+            self.push_var(var.to_ast_ref());
         }
 
         Ok(exp)
@@ -226,7 +224,7 @@ impl<'s, 'f> Parser<'s, 'f> {
         comes_colon_space
     }
 
-    fn check_not_inside_def<F, T>(&mut self, message: &'_ str, mut f: F) -> Result<'f, T>
+    fn check_not_inside_def<F, T>(&mut self, message: &str, mut f: F) -> Result<'f, T>
     where
         F: FnMut(&mut Self) -> Result<'f, T>,
     {
@@ -328,19 +326,88 @@ impl<'s, 'f> Parser<'s, 'f> {
         todo!("is_end_token")
     }
 
-    fn push_var(&mut self, _node: AstRef<'_, 'f>) {
-        todo!("push_var")
+    // fn consume_def_or_macro_name(&mut self) -> Result<'f, bool> {
+    //     self.lexer.next_token()?;
+    //     if self.lexer.token.kind == TokenKind::Op(Op::Eq) {
+    //         self.lexer.next_token_skip_space()?;
+    //         Ok(true)
+    //     } else {
+    //         self.lexer.skip_space()?;
+    //         Ok(false)
+    //     }
+    // }
+
+    fn consume_def_equals_sign_skip_space(&mut self) -> Result<'f, bool> {
+        self.lexer.next_token()?;
+        if self.lexer.token.kind == TokenKind::Op(Op::Eq) {
+            self.lexer.next_token_skip_space()?;
+            Ok(true)
+        } else {
+            self.lexer.skip_space()?;
+            Ok(false)
+        }
     }
 
-    fn is_var_in_scope(&self, name: Vec<char>) -> bool {
-        self.var_scopes.last().unwrap().contains(&name)
+    fn with_isolated_var_scope<F, T>(&mut self, f: F) -> T
+    where
+        F: FnMut(&mut Self) -> T,
+    {
+        self.with_isolated_var_scope2(true, f)
     }
 
-    fn check_void_value(
-        &self,
-        exp: AstNodeRef<'_, 'f>,
-        location: &'_ Location<'f>,
-    ) -> Result<'f, ()> {
+    fn with_isolated_var_scope2<F, T>(&mut self, create_scope: bool, mut f: F) -> T
+    where
+        F: FnMut(&mut Self) -> T,
+    {
+        if !create_scope {
+            return f(self);
+        }
+
+        self.var_scopes.push(HashSet::new());
+        let value = f(self);
+        self.var_scopes.pop();
+        value
+    }
+
+    fn with_lexical_var_scope<F, T>(&mut self, mut f: F) -> T
+    where
+        F: FnMut(&mut Self) -> T,
+    {
+        let current_scope = self.var_scopes.last().unwrap().clone();
+        self.var_scopes.push(current_scope);
+        let value = f(self);
+        self.var_scopes.pop();
+        value
+    }
+
+    fn push_vars(&mut self, vars: &[AstNodeBox<'f>]) {
+        for var in vars {
+            self.push_var(var.to_ast_ref());
+        }
+    }
+
+    fn push_var(&mut self, node: AstRef<'_, 'f>) {
+        self.push_var_name(match node {
+            AstRef::Var(var) => &var.name,
+            AstRef::Arg(arg) => &arg.name,
+            AstRef::TypeDeclaration(type_declaration) => match type_declaration.var.to_ast_ref() {
+                AstRef::Var(var) => &var.name,
+                AstRef::InstanceVar(var) => &var.name,
+                _ => panic!("can't happen"),
+            },
+            _ => return, // Nothing
+        });
+    }
+
+    fn push_var_name(&mut self, name: &str) {
+        self.var_scopes.last_mut().unwrap().insert(name.to_string());
+    }
+
+    fn is_var_in_scope(&self, name: &str) -> bool {
+        self.var_scopes.last().unwrap().contains(name)
+    }
+
+    fn check_void_value(&self, exp: AstNodeRef<'_, 'f>, location: &Location<'f>) -> Result<'f, ()> {
         if exp.is_control_expression() {
             self.raise_at("void value expression", location)
         } else {
@@ -407,14 +474,14 @@ impl<'s, 'f> Parser<'s, 'f> {
         }
     }
 
-    fn check_any_ident(&self) -> Result<'f, Vec<char>> {
+    fn check_any_ident(&self) -> Result<'f, String> {
         self.check(TokenKind::Ident)?;
-        Ok(self.lexer.token.value.to_string().chars().collect())
+        Ok(self.lexer.token.value.to_string())
     }
 
-    fn check_const(&self) -> Result<'f, Vec<char>> {
+    fn check_const(&self) -> Result<'f, String> {
         self.check(TokenKind::Const)?;
-        Ok(self.lexer.token.value.to_string().chars().collect())
+        Ok(self.lexer.token.value.to_string())
     }
 
     fn unexpected_token<T>(&self) -> Result<'f, T> {
@@ -443,7 +510,7 @@ impl<'s, 'f> Parser<'s, 'f> {
     fn unexpected_token_in_atomic<T>(&self) -> Result<'f, T> {
         if let Some(unclosed) = self.unclosed_stack.last() {
             return self.raise_at(
-                format!("unterminated {}", String::from_iter(&unclosed.name)),
+                format!("unterminated {}", &unclosed.name),
                 &unclosed.location,
             );
         }
@@ -451,12 +518,12 @@ impl<'s, 'f> Parser<'s, 'f> {
         self.unexpected_token()
     }
 
-    fn is_var(&self, name: Vec<char>) -> bool {
+    fn is_var(&self, name: &str) -> bool {
         if self.in_macro_expression {
             return true;
         }
 
-        &name == &['s', 'e', 'l', 'f'] || self.is_var_in_scope(name)
+        name == "self" || self.is_var_in_scope(name)
     }
 
     fn push_visibilty<F, T>(&mut self, mut f: F) -> T
@@ -470,10 +537,10 @@ impl<'s, 'f> Parser<'s, 'f> {
         value
     }
 
-    fn temp_arg_name(&mut self) -> Vec<char> {
+    fn temp_arg_name(&mut self) -> String {
         let arg_name = format!("__arg{}", self.temp_arg_count);
         self.temp_arg_count += 1;
-        arg_name.chars().collect()
+        arg_name
     }
 }
 

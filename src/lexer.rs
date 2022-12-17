@@ -1118,12 +1118,12 @@ impl<'s, 'f> Lexer<'s, 'f> {
                 doc_buffer.push('\n');
             }
             None => {
-                self.token.doc_buffer = Some(Vec::new());
+                self.token.doc_buffer = Some(String::new());
             }
         }
 
         let doc_buffer = self.token.doc_buffer.as_mut().unwrap();
-        doc_buffer.extend_from_slice(slice)
+        doc_buffer.extend(slice);
     }
 
     fn skip_comment(&mut self) {
@@ -1348,7 +1348,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
                 let line = self.line_number;
                 let column = self.column_number;
                 let start = self.current_pos() + 1;
-                let mut string = Vec::<char>::new();
+                let mut string = String::new();
                 loop {
                     match self.next_char() {
                         '\\' => match self.next_char() {
@@ -1541,7 +1541,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
     }
 
     fn string_range2(&self, start_pos: usize, end_pos: usize) -> TokenValue {
-        TokenValue::String(self.reader.string()[start_pos..end_pos].to_vec())
+        TokenValue::String(String::from_iter(&self.reader.string[start_pos..end_pos]))
     }
 
     fn slice_range(&self, start_pos: usize) -> &'s [char] {
@@ -1549,7 +1549,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
     }
 
     fn slice_range2(&self, start_pos: usize, end_pos: usize) -> &'s [char] {
-        &self.reader.string()[start_pos..end_pos]
+        &self.reader.string[start_pos..end_pos]
     }
 
     fn is_ident_start(c: char) -> bool {
@@ -1560,14 +1560,15 @@ impl<'s, 'f> Lexer<'s, 'f> {
         Self::is_ident_start(c) || c.is_ascii_digit()
     }
 
-    fn is_ident(name: &[char]) -> bool {
-        name.first()
-            .map(|c| Self::is_ident_start(*c))
+    fn is_ident(name: &str) -> bool {
+        name.chars()
+            .next()
+            .map(|c| Self::is_ident_start(c))
             .unwrap_or(false)
     }
 
-    pub fn is_setter(name: &[char]) -> bool {
-        Self::is_ident(name) && name.last().map(|c| *c == '=').unwrap_or(false)
+    pub fn is_setter(name: &str) -> bool {
+        Self::is_ident(name) && name.ends_with('_')
     }
 
     fn is_ident_part_or_end(c: char) -> bool {
@@ -1650,13 +1651,13 @@ pub trait Raise<'f, S> {
     fn raise<T>(&self, message: S) -> Result<'f, T>;
 }
 
-impl<'f> Raise<'f, &'_ str> for Lexer<'_, 'f> {
-    fn raise<T>(&self, message: &'_ str) -> Result<'f, T> {
+impl<'s, 'f> Raise<'f, &str> for Lexer<'s, 'f> {
+    fn raise<T>(&self, message: &str) -> Result<'f, T> {
         self.raise(message.to_string())
     }
 }
 
-impl<'f> Raise<'f, String> for Lexer<'_, 'f> {
+impl<'s, 'f> Raise<'f, String> for Lexer<'s, 'f> {
     fn raise<T>(&self, message: String) -> Result<'f, T> {
         Err(SyntaxError::new(
             message,
@@ -1671,16 +1672,16 @@ pub trait RaiseAt<'f, S, L> {
     fn raise_at<T>(&self, message: S, location: L) -> Result<'f, T>;
 }
 
-impl<'s, 'f, L> RaiseAt<'f, &'_ str, L> for Lexer<'s, 'f>
+impl<'s, 'f, L> RaiseAt<'f, &str, L> for Lexer<'s, 'f>
 where
     Lexer<'s, 'f>: RaiseAt<'f, String, L>,
 {
-    fn raise_at<T>(&self, message: &'_ str, location: L) -> Result<'f, T> {
+    fn raise_at<T>(&self, message: &str, location: L) -> Result<'f, T> {
         self.raise_at(message.to_string(), location)
     }
 }
 
-impl<'f> RaiseAt<'f, String, (usize, usize)> for Lexer<'_, 'f> {
+impl<'s, 'f> RaiseAt<'f, String, (usize, usize)> for Lexer<'s, 'f> {
     fn raise_at<T>(&self, message: String, location: (usize, usize)) -> Result<'f, T> {
         let (line_number, column_number) = location;
         Err(SyntaxError::new(
@@ -1692,8 +1693,8 @@ impl<'f> RaiseAt<'f, String, (usize, usize)> for Lexer<'_, 'f> {
     }
 }
 
-impl<'f> RaiseAt<'f, String, &'_ Token<'_, 'f>> for Lexer<'_, 'f> {
-    fn raise_at<T>(&self, message: String, token: &'_ Token<'_, 'f>) -> Result<'f, T> {
+impl<'s, 'f> RaiseAt<'f, String, &Token<'s, 'f>> for Lexer<'s, 'f> {
+    fn raise_at<T>(&self, message: String, token: &Token<'s, 'f>) -> Result<'f, T> {
         Err(SyntaxError::new(
             message,
             token.line_number,
@@ -1703,8 +1704,8 @@ impl<'f> RaiseAt<'f, String, &'_ Token<'_, 'f>> for Lexer<'_, 'f> {
     }
 }
 
-impl<'f> RaiseAt<'f, String, &'_ Location<'f>> for Lexer<'_, 'f> {
-    fn raise_at<T>(&self, message: String, location: &'_ Location<'f>) -> Result<'f, T> {
+impl<'s, 'f> RaiseAt<'f, String, &Location<'f>> for Lexer<'s, 'f> {
+    fn raise_at<T>(&self, message: String, location: &Location<'f>) -> Result<'f, T> {
         Err(SyntaxError::new(
             message,
             location.line_number(),

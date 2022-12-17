@@ -1,5 +1,5 @@
 pub struct CharReader<'s> {
-    string: &'s [char],
+    pub string: &'s [char],
     current_char: char,
     pos: usize,
     end: bool,
@@ -15,10 +15,6 @@ impl<'s> CharReader<'s> {
         };
         reader.reset_current_char();
         reader
-    }
-
-    pub fn string(&self) -> &'s [char] {
-        self.string
     }
 
     pub fn current_char(&self) -> char {

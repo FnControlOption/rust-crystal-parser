@@ -18,9 +18,9 @@ pub trait AstNode<'f>: fmt::Debug {
         CONTROL_EXPRESSIONS.contains(&self.tag())
     }
 
-    fn to_box(self: Box<Self>) -> AstBox<'f>;
+    fn to_ast_box(self: Box<Self>) -> AstBox<'f>;
 
-    fn to_ref<'a>(&'a self) -> AstRef<'a, 'f>;
+    fn to_ast_ref<'a>(&'a self) -> AstRef<'a, 'f>;
 }
 
 pub trait At<'f, L> {
@@ -580,11 +580,11 @@ macro_rules! Node {
                 AstTag::$name
             }
 
-            fn to_box(self: Box<Self>) -> AstBox<'f> {
+            fn to_ast_box(self: Box<Self>) -> AstBox<'f> {
                 AstBox::$name(self)
             }
 
-            fn to_ref<'a>(&'a self) -> AstRef<'a, 'f> {
+            fn to_ast_ref<'a>(&'a self) -> AstRef<'a, 'f> {
                 AstRef::$name(self)
             }
         }
@@ -853,12 +853,12 @@ impl From<f64> for NumberKind {
 
 Node!(
     NumberLiteral;
-    pub value: Vec<char>,
+    pub value: String,
     pub kind: NumberKind,
 );
 
 impl<'f> NumberLiteral<'f> {
-    pub fn new(value: Vec<char>, kind: NumberKind) -> Box<Self> {
+    pub fn new(value: String, kind: NumberKind) -> Box<Self> {
         new_node! {
             value: value,
             kind: kind,
@@ -881,11 +881,11 @@ impl<'f> CharLiteral<'f> {
 
 Node!(
     StringLiteral;
-    pub value: Vec<char>,
+    pub value: String,
 );
 
 impl<'f> StringLiteral<'f> {
-    pub fn new(value: Vec<char>) -> Box<Self> {
+    pub fn new(value: String) -> Box<Self> {
         new_node! {
             value: value,
         }
@@ -909,11 +909,11 @@ impl<'f> StringInterpolation<'f> {
 
 Node!(
     SymbolLiteral;
-    pub value: Vec<char>,
+    pub value: String,
 );
 
 impl<'f> SymbolLiteral<'f> {
-    pub fn new(value: Vec<char>) -> Box<Self> {
+    pub fn new(value: String) -> Box<Self> {
         new_node! {
             value: value,
         }
@@ -989,12 +989,12 @@ impl<'f> NamedTupleLiteral<'f> {
 
 #[derive(Debug)]
 pub struct NamedTupleEntry<'f> {
-    pub key: Vec<char>,
+    pub key: String,
     pub value: AstNodeBox<'f>,
 }
 
 impl<'f> NamedTupleEntry<'f> {
-    pub fn new(key: Vec<char>, value: AstNodeBox<'f>) -> Self {
+    pub fn new(key: String, value: AstNodeBox<'f>) -> Self {
         Self { key, value }
     }
 }
@@ -1049,11 +1049,11 @@ impl<'f> TupleLiteral<'f> {
 
 Node!(
     Var;
-    pub name: Vec<char>,
+    pub name: String,
 );
 
 impl<'f> Var<'f> {
-    pub fn new(name: Vec<char>) -> Box<Self> {
+    pub fn new(name: String) -> Box<Self> {
         new_node! {
             name: name,
         }
@@ -1087,14 +1087,14 @@ impl<'f> Block<'f> {
 Node!(
     Call;
     pub obj: Option<AstNodeBox<'f>>,
-    pub name: Vec<char>,
+    pub name: String,
     pub args: Vec<AstNodeBox<'f>>,
     pub block: Option<Box<Block<'f>>>,
     pub block_arg: Option<AstNodeBox<'f>>,
     pub named_args: Option<Vec<Box<NamedArgument<'f>>>>,
     pub name_location: Option<Location<'f>>,
     name_size: Option<usize>,
-    pub doc: Option<Vec<char>>,
+    pub doc: Option<String>,
     pub visibility: Visibility,
     pub global: bool,
     pub expansion: bool,
@@ -1104,14 +1104,14 @@ Node!(
 impl<'f> Call<'f> {
     pub fn new(
         obj: Option<AstNodeBox<'f>>,
-        name: Vec<char>,
+        name: String,
         args: Vec<AstNodeBox<'f>>,
         block: Option<Box<Block<'f>>>,
         block_arg: Option<AstNodeBox<'f>>,
         named_args: Option<Vec<Box<NamedArgument<'f>>>>,
         name_location: Option<Location<'f>>,
         name_size: Option<usize>,
-        doc: Option<Vec<char>>,
+        doc: Option<String>,
         // visibility: Visibility,
         global: bool,
         // expansion: bool,
@@ -1136,18 +1136,13 @@ impl<'f> Call<'f> {
 
     pub fn name_size(&mut self) -> usize {
         if self.name_size.is_none() {
-            self.name_size = Some(self.calculate_name_size());
+            self.name_size = Some(if self.name.ends_with('=') || self.name.ends_with('@') {
+                self.name.len() - 1
+            } else {
+                self.name.len()
+            });
         }
         self.name_size.unwrap()
-    }
-
-    fn calculate_name_size(&self) -> usize {
-        if let Some(c) = self.name.last() {
-            if *c == '=' || *c == '@' {
-                return self.name.len() - 1;
-            }
-        }
-        self.name.len()
     }
 
     pub fn set_name_size(&mut self, name_size: usize) {
@@ -1157,12 +1152,12 @@ impl<'f> Call<'f> {
 
 Node!(
     NamedArgument;
-    pub name: Vec<char>,
+    pub name: String,
     pub value: AstNodeBox<'f>,
 );
 
 impl<'f> NamedArgument<'f> {
-    pub fn new(name: Vec<char>, value: AstNodeBox<'f>) -> Box<Self> {
+    pub fn new(name: String, value: AstNodeBox<'f>) -> Box<Self> {
         new_node! {
             name: name,
             value: value,
@@ -1225,11 +1220,11 @@ Node!(
     Assign;
     pub target: AstNodeBox<'f>,
     pub value: AstNodeBox<'f>,
-    pub doc: Option<Vec<char>>,
+    pub doc: Option<String>,
 );
 
 impl<'f> Assign<'f> {
-    pub fn new(target: AstNodeBox<'f>, value: AstNodeBox<'f>, doc: Option<Vec<char>>) -> Box<Self> {
+    pub fn new(target: AstNodeBox<'f>, value: AstNodeBox<'f>, doc: Option<String>) -> Box<Self> {
         new_node! {
             target: target,
             value: value,
@@ -1241,7 +1236,7 @@ impl<'f> Assign<'f> {
 Node!(
     OpAssign;
     pub target: AstNodeBox<'f>,
-    pub op: Vec<char>,
+    pub op: String,
     pub value: AstNodeBox<'f>,
     pub name_location: Option<Location<'f>>,
 );
@@ -1249,7 +1244,7 @@ Node!(
 impl<'f> OpAssign<'f> {
     pub fn new(
         target: AstNodeBox<'f>,
-        op: Vec<char>,
+        op: String,
         value: AstNodeBox<'f>,
         name_location: Option<Location<'f>>,
     ) -> Box<Self> {
@@ -1279,11 +1274,11 @@ impl<'f> MultiAssign<'f> {
 
 Node!(
     InstanceVar;
-    pub name: Vec<char>,
+    pub name: String,
 );
 
 impl<'f> InstanceVar<'f> {
-    pub fn new(name: Vec<char>) -> Box<Self> {
+    pub fn new(name: String) -> Box<Self> {
         new_node! {
             name: name,
         }
@@ -1293,11 +1288,11 @@ impl<'f> InstanceVar<'f> {
 Node!(
     ReadInstanceVar;
     pub obj: AstNodeBox<'f>,
-    pub name: Vec<char>,
+    pub name: String,
 );
 
 impl<'f> ReadInstanceVar<'f> {
-    pub fn new(obj: AstNodeBox<'f>, name: Vec<char>) -> Box<Self> {
+    pub fn new(obj: AstNodeBox<'f>, name: String) -> Box<Self> {
         new_node! {
             obj: obj,
             name: name,
@@ -1307,11 +1302,11 @@ impl<'f> ReadInstanceVar<'f> {
 
 Node!(
     ClassVar;
-    pub name: Vec<char>,
+    pub name: String,
 );
 
 impl<'f> ClassVar<'f> {
-    pub fn new(name: Vec<char>) -> Box<Self> {
+    pub fn new(name: String) -> Box<Self> {
         new_node! {
             name: name,
         }
@@ -1320,11 +1315,11 @@ impl<'f> ClassVar<'f> {
 
 Node!(
     Global;
-    pub name: Vec<char>,
+    pub name: String,
 );
 
 impl<'f> Global<'f> {
-    pub fn new(name: Vec<char>) -> Box<Self> {
+    pub fn new(name: String) -> Box<Self> {
         new_node! {
             name: name,
         }
@@ -1356,21 +1351,21 @@ BinaryOp!(Or);
 
 Node!(
     Arg;
-    pub name: Vec<char>,
-    pub external_name: Vec<char>,
+    pub name: String,
+    pub external_name: String,
     pub default_value: Option<AstNodeBox<'f>>,
     pub restriction: Option<AstNodeBox<'f>>,
-    pub doc: Option<Vec<char>>,
+    pub doc: Option<String>,
     pub parsed_annotations: Option<Vec<Box<Annotation<'f>>>>,
 );
 
 impl<'f> Arg<'f> {
     pub fn new(
-        name: Vec<char>,
-        external_name: Vec<char>,
+        name: String,
+        external_name: String,
         default_value: Option<AstNodeBox<'f>>,
         restriction: Option<AstNodeBox<'f>>,
-        doc: Option<Vec<char>>,
+        doc: Option<String>,
         parsed_annotations: Option<Vec<Box<Annotation<'f>>>>,
     ) -> Box<Self> {
         new_node! {
@@ -1401,9 +1396,9 @@ impl<'f> ProcNotation<'f> {
 
 Node!(
     Def;
-    pub free_vars: Option<Vec<Vec<char>>>,
+    pub free_vars: Option<Vec<String>>,
     pub receiver: Option<AstNodeBox<'f>>,
-    pub name: Vec<char>,
+    pub name: String,
     pub args: Vec<Box<Arg<'f>>>,
     pub double_splat: Option<Box<Arg<'f>>>,
     pub body: AstNodeBox<'f>,
@@ -1412,7 +1407,7 @@ Node!(
     pub block_arity: Option<usize>,
     pub name_location: Option<Location<'f>>,
     pub splat_index: Option<usize>,
-    pub doc: Option<Vec<char>>,
+    pub doc: Option<String>,
     pub visibility: Visibility,
     pub macro_def: bool,
     pub calls_super: bool,
@@ -1425,9 +1420,9 @@ Node!(
 
 impl<'f> Def<'f> {
     pub fn new(
-        free_vars: Option<Vec<Vec<char>>>,
+        free_vars: Option<Vec<String>>,
         receiver: Option<AstNodeBox<'f>>,
-        name: Vec<char>,
+        name: String,
         args: Vec<Box<Arg<'f>>>,
         double_splat: Option<Box<Arg<'f>>>,
         body: AstNodeBox<'f>,
@@ -1436,7 +1431,7 @@ impl<'f> Def<'f> {
         block_arity: Option<usize>,
         name_location: Option<Location<'f>>,
         splat_index: Option<usize>,
-        doc: Option<Vec<char>>,
+        doc: Option<String>,
         // visibility: Visibility,
         macro_def: bool,
         // calls_super: bool,
@@ -1473,27 +1468,27 @@ impl<'f> Def<'f> {
 
 Node!(
     Macro;
-    pub name: Vec<char>,
+    pub name: String,
     pub args: Vec<Box<Arg<'f>>>,
     pub body: AstNodeBox<'f>,
     pub double_splat: Option<Box<Arg<'f>>>,
     pub block_arg: Option<Box<Arg<'f>>>,
     pub name_location: Option<Location<'f>>,
     pub splat_index: Option<usize>,
-    pub doc: Option<Vec<char>>,
+    pub doc: Option<String>,
     pub visibility: Visibility,
 );
 
 impl<'f> Macro<'f> {
     pub fn new(
-        name: Vec<char>,
+        name: String,
         args: Vec<Box<Arg<'f>>>,
         body: AstNodeBox<'f>,
         double_splat: Option<Box<Arg<'f>>>,
         block_arg: Option<Box<Arg<'f>>>,
         name_location: Option<Location<'f>>,
         splat_index: Option<usize>,
-        doc: Option<Vec<char>>,
+        doc: Option<String>,
         // visibility: Visibility,
     ) -> Box<Self> {
         new_node! {
@@ -1556,11 +1551,11 @@ Node!(
     VisibilityModifier;
     pub modifier: Visibility,
     pub exp: AstNodeBox<'f>,
-    pub doc: Option<Vec<char>>,
+    pub doc: Option<String>,
 );
 
 impl<'f> VisibilityModifier<'f> {
-    pub fn new(modifier: Visibility, exp: AstNodeBox<'f>, doc: Option<Vec<char>>) -> Box<Self> {
+    pub fn new(modifier: Visibility, exp: AstNodeBox<'f>, doc: Option<String>) -> Box<Self> {
         new_node! {
             modifier: modifier,
             exp: exp,
@@ -1589,11 +1584,11 @@ impl<'f> IsA<'f> {
 Node!(
     RespondsTo;
     pub obj: AstNodeBox<'f>,
-    pub name: Vec<char>,
+    pub name: String,
 );
 
 impl<'f> RespondsTo<'f> {
-    pub fn new(obj: AstNodeBox<'f>, name: Vec<char>) -> Box<Self> {
+    pub fn new(obj: AstNodeBox<'f>, name: String) -> Box<Self> {
         new_node! {
             obj: obj,
             name: name,
@@ -1603,11 +1598,11 @@ impl<'f> RespondsTo<'f> {
 
 Node!(
     Require;
-    pub string: Vec<char>,
+    pub string: String,
 );
 
 impl<'f> Require<'f> {
-    pub fn new(string: Vec<char>) -> Box<Self> {
+    pub fn new(string: String) -> Box<Self> {
         new_node! {
             string: string,
         }
@@ -1692,14 +1687,14 @@ impl<'f> ImplicitObj<'f> {
 
 Node!(
     Path;
-    pub names: Vec<Vec<char>>,
+    pub names: Vec<String>,
     pub global: bool,
     pub visibility: Visibility,
 );
 
 impl<'f> Path<'f> {
     pub fn new(
-        names: Vec<Vec<char>>,
+        names: Vec<String>,
         global: bool,
         // visibility: Visibility,
     ) -> Box<Self> {
@@ -1716,9 +1711,9 @@ Node!(
     pub name: Box<Path<'f>>,
     pub body: AstNodeBox<'f>,
     pub superclass: Option<AstNodeBox<'f>>,
-    pub type_vars: Option<Vec<Vec<char>>>,
+    pub type_vars: Option<Vec<String>>,
     pub name_location: Option<Location<'f>>,
-    pub doc: Option<Vec<char>>,
+    pub doc: Option<String>,
     pub splat_index: Option<usize>,
     pub abstract_: bool,
     pub struct_: bool,
@@ -1730,9 +1725,9 @@ impl<'f> ClassDef<'f> {
         name: Box<Path<'f>>,
         body: AstNodeBox<'f>,
         superclass: Option<AstNodeBox<'f>>,
-        type_vars: Option<Vec<Vec<char>>>,
+        type_vars: Option<Vec<String>>,
         name_location: Option<Location<'f>>,
-        doc: Option<Vec<char>>,
+        doc: Option<String>,
         splat_index: Option<usize>,
         abstract_: bool,
         struct_: bool,
@@ -1757,10 +1752,10 @@ Node!(
     ModuleDef;
     pub name: Box<Path<'f>>,
     pub body: AstNodeBox<'f>,
-    pub type_vars: Option<Vec<Vec<char>>>,
+    pub type_vars: Option<Vec<String>>,
     pub splat_index: Option<usize>,
     pub name_location: Option<Location<'f>>,
-    pub doc: Option<Vec<char>>,
+    pub doc: Option<String>,
     pub visibility: Visibility,
 );
 
@@ -1768,10 +1763,10 @@ impl<'f> ModuleDef<'f> {
     pub fn new(
         name: Box<Path<'f>>,
         body: AstNodeBox<'f>,
-        type_vars: Option<Vec<Vec<char>>>,
+        type_vars: Option<Vec<String>>,
         splat_index: Option<usize>,
         name_location: Option<Location<'f>>,
-        doc: Option<Vec<char>>,
+        doc: Option<String>,
         // visibility: Visibility,
     ) -> Box<Self> {
         new_node! {
@@ -1789,14 +1784,14 @@ impl<'f> ModuleDef<'f> {
 Node!(
     AnnotationDef;
     pub name: Box<Path<'f>>,
-    pub doc: Option<Vec<char>>,
+    pub doc: Option<String>,
     pub name_location: Option<Location<'f>>,
 );
 
 impl<'f> AnnotationDef<'f> {
     pub fn new(
         name: Box<Path<'f>>,
-        doc: Option<Vec<char>>,
+        doc: Option<String>,
         name_location: Option<Location<'f>>,
     ) -> Box<Self> {
         new_node! {
@@ -1909,14 +1904,14 @@ Node!(
     Rescue;
     pub body: AstNodeBox<'f>,
     pub types: Option<Vec<AstNodeBox<'f>>>,
-    pub name: Option<Vec<char>>,
+    pub name: Option<String>,
 );
 
 impl<'f> Rescue<'f> {
     pub fn new(
         body: AstNodeBox<'f>,
         types: Option<Vec<AstNodeBox<'f>>>,
-        name: Option<Vec<char>>,
+        name: Option<String>,
     ) -> Box<Self> {
         new_node! {
             body: body,
@@ -1978,7 +1973,7 @@ impl<'f> ProcLiteral<'f> {
 Node!(
     ProcPointer;
     pub obj: Option<AstNodeBox<'f>>,
-    pub name: Vec<char>,
+    pub name: String,
     pub args: Vec<AstNodeBox<'f>>,
     pub global: bool,
 );
@@ -1986,7 +1981,7 @@ Node!(
 impl<'f> ProcPointer<'f> {
     pub fn new(
         obj: Option<AstNodeBox<'f>>,
-        name: Vec<char>,
+        name: String,
         args: Vec<AstNodeBox<'f>>,
         global: bool,
     ) -> Box<Self> {
@@ -2094,7 +2089,7 @@ impl<'f> Extend<'f> {
 
 Node!(
     LibDef;
-    pub name: Vec<char>,
+    pub name: String,
     pub body: AstNodeBox<'f>,
     pub name_location: Option<Location<'f>>,
     pub visibility: Visibility,
@@ -2102,7 +2097,7 @@ Node!(
 
 impl<'f> LibDef<'f> {
     pub fn new(
-        name: Vec<char>,
+        name: String,
         body: AstNodeBox<'f>,
         name_location: Option<Location<'f>>,
         // visibility: Visibility,
@@ -2118,23 +2113,23 @@ impl<'f> LibDef<'f> {
 
 Node!(
     FunDef;
-    pub name: Vec<char>,
+    pub name: String,
     pub args: Vec<Box<Arg<'f>>>,
     pub return_type: Option<AstNodeBox<'f>>,
     pub body: Option<AstNodeBox<'f>>,
-    pub real_name: Vec<char>,
-    pub doc: Option<Vec<char>>,
+    pub real_name: String,
+    pub doc: Option<String>,
     pub varargs: bool,
 );
 
 impl<'f> FunDef<'f> {
     pub fn new(
-        name: Vec<char>,
+        name: String,
         args: Vec<Box<Arg<'f>>>,
         return_type: Option<AstNodeBox<'f>>,
         body: Option<AstNodeBox<'f>>,
-        real_name: Vec<char>,
-        doc: Option<Vec<char>>,
+        real_name: String,
+        doc: Option<String>,
         varargs: bool,
     ) -> Box<Self> {
         new_node! {
@@ -2151,14 +2146,14 @@ impl<'f> FunDef<'f> {
 
 Node!(
     TypeDef;
-    pub name: Vec<char>,
+    pub name: String,
     pub type_spec: AstNodeBox<'f>,
     pub name_location: Option<Location<'f>>,
 );
 
 impl<'f> TypeDef<'f> {
     pub fn new(
-        name: Vec<char>,
+        name: String,
         type_spec: AstNodeBox<'f>,
         name_location: Option<Location<'f>>,
     ) -> Box<Self> {
@@ -2172,13 +2167,13 @@ impl<'f> TypeDef<'f> {
 
 Node!(
     CStructOrUnionDef;
-    pub name: Vec<char>,
+    pub name: String,
     pub body: AstNodeBox<'f>,
     pub union: bool,
 );
 
 impl<'f> CStructOrUnionDef<'f> {
-    pub fn new(name: Vec<char>, body: AstNodeBox<'f>, union: bool) -> Box<Self> {
+    pub fn new(name: String, body: AstNodeBox<'f>, union: bool) -> Box<Self> {
         new_node! {
             name: name,
             body: body,
@@ -2192,7 +2187,7 @@ Node!(
     pub name: Box<Path<'f>>,
     pub members: Vec<AstNodeBox<'f>>,
     pub base_type: Option<AstNodeBox<'f>>,
-    pub doc: Option<Vec<char>>,
+    pub doc: Option<String>,
     pub visibility: Visibility,
 );
 
@@ -2201,7 +2196,7 @@ impl<'f> EnumDef<'f> {
         name: Box<Path<'f>>,
         members: Vec<AstNodeBox<'f>>,
         base_type: Option<AstNodeBox<'f>>,
-        doc: Option<Vec<char>>,
+        doc: Option<String>,
         // visibility: Visibility,
     ) -> Box<Self> {
         new_node! {
@@ -2216,17 +2211,13 @@ impl<'f> EnumDef<'f> {
 
 Node!(
     ExternalVar;
-    pub name: Vec<char>,
+    pub name: String,
     pub type_spec: AstNodeBox<'f>,
-    pub real_name: Option<Vec<char>>,
+    pub real_name: Option<String>,
 );
 
 impl<'f> ExternalVar<'f> {
-    pub fn new(
-        name: Vec<char>,
-        type_spec: AstNodeBox<'f>,
-        real_name: Option<Vec<char>>,
-    ) -> Box<Self> {
+    pub fn new(name: String, type_spec: AstNodeBox<'f>, real_name: Option<String>) -> Box<Self> {
         new_node! {
             name: name,
             type_spec: type_spec,
@@ -2239,7 +2230,7 @@ Node!(
     Alias;
     pub name: Box<Path<'f>>,
     pub value: AstNodeBox<'f>,
-    pub doc: Option<Vec<char>>,
+    pub doc: Option<String>,
     pub visibility: Visibility,
 );
 
@@ -2247,7 +2238,7 @@ impl<'f> Alias<'f> {
     pub fn new(
         name: Box<Path<'f>>,
         value: AstNodeBox<'f>,
-        doc: Option<Vec<char>>,
+        doc: Option<String>,
         // visibility: Visibility,
     ) -> Box<Self> {
         new_node! {
@@ -2320,7 +2311,7 @@ Node!(
     pub path: Box<Path<'f>>,
     pub args: Vec<AstNodeBox<'f>>,
     pub named_args: Option<Vec<Box<NamedArgument<'f>>>>,
-    pub doc: Option<Vec<char>>,
+    pub doc: Option<String>,
 );
 
 impl<'f> Annotation<'f> {
@@ -2328,7 +2319,7 @@ impl<'f> Annotation<'f> {
         path: Box<Path<'f>>,
         args: Vec<AstNodeBox<'f>>,
         named_args: Option<Vec<Box<NamedArgument<'f>>>>,
-        doc: Option<Vec<char>>,
+        doc: Option<String>,
     ) -> Box<Self> {
         new_node! {
             path: path,
@@ -2356,11 +2347,11 @@ impl<'f> MacroExpression<'f> {
 
 Node!(
     MacroLiteral;
-    pub value: Vec<char>,
+    pub value: String,
 );
 
 impl<'f> MacroLiteral<'f> {
-    pub fn new(value: Vec<char>) -> Box<Self> {
+    pub fn new(value: String) -> Box<Self> {
         new_node! {
             value: value,
         }
@@ -2405,12 +2396,12 @@ impl<'f> MacroFor<'f> {
 
 Node!(
     MacroVar;
-    pub name: Vec<char>,
+    pub name: String,
     pub exps: Option<Vec<AstNodeBox<'f>>>,
 );
 
 impl<'f> MacroVar<'f> {
-    pub fn new(name: Vec<char>, exps: Option<Vec<AstNodeBox<'f>>>) -> Box<Self> {
+    pub fn new(name: String, exps: Option<Vec<AstNodeBox<'f>>>) -> Box<Self> {
         new_node! {
             name: name,
             exps: exps,
@@ -2445,10 +2436,10 @@ impl<'f> MagicConstant<'f> {
 
 Node!(
     Asm;
-    pub text: Vec<char>,
+    pub text: String,
     pub outputs: Option<Vec<Box<AsmOperand<'f>>>>,
     pub inputs: Option<Vec<Box<AsmOperand<'f>>>>,
-    pub clobbers: Option<Vec<Vec<char>>>,
+    pub clobbers: Option<Vec<String>>,
     pub volatile: bool,
     pub alignstack: bool,
     pub intel: bool,
@@ -2457,10 +2448,10 @@ Node!(
 
 impl<'f> Asm<'f> {
     pub fn new(
-        text: Vec<char>,
+        text: String,
         outputs: Option<Vec<Box<AsmOperand<'f>>>>,
         inputs: Option<Vec<Box<AsmOperand<'f>>>>,
-        clobbers: Option<Vec<Vec<char>>>,
+        clobbers: Option<Vec<String>>,
         volatile: bool,
         alignstack: bool,
         intel: bool,
@@ -2481,12 +2472,12 @@ impl<'f> Asm<'f> {
 
 Node!(
     AsmOperand;
-    pub constraint: Vec<char>,
+    pub constraint: String,
     pub exp: AstNodeBox<'f>,
 );
 
 impl<'f> AsmOperand<'f> {
-    pub fn new(constraint: Vec<char>, exp: AstNodeBox<'f>) -> Box<Self> {
+    pub fn new(constraint: String, exp: AstNodeBox<'f>) -> Box<Self> {
         new_node! {
             constraint: constraint,
             exp: exp,

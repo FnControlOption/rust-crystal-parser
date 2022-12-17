@@ -3,6 +3,16 @@ use crate::location::Location;
 use std::fmt;
 use std::rc::Rc;
 
+macro_rules! IntoString {
+    ($name:ident) => {
+        impl fmt::Display for $name {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "{}", Into::<&str>::into(self))
+            }
+        }
+    };
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Keyword {
     Abstract,
@@ -67,74 +77,72 @@ pub enum Keyword {
     Yield,
 }
 
-impl fmt::Display for Keyword {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Keyword::Abstract => "abstract",
-                Keyword::Alias => "alias",
-                Keyword::Annotation => "annotation",
-                Keyword::As => "as",
-                Keyword::AsQuestion => "as?",
-                Keyword::Asm => "asm",
-                Keyword::Begin => "begin",
-                Keyword::Break => "break",
-                Keyword::Case => "case",
-                Keyword::Class => "class",
-                Keyword::Def => "def",
-                Keyword::Do => "do",
-                Keyword::Else => "else",
-                Keyword::Elsif => "elsif",
-                Keyword::End => "end",
-                Keyword::Ensure => "ensure",
-                Keyword::Enum => "enum",
-                Keyword::Extend => "extend",
-                Keyword::False => "false",
-                Keyword::For => "for",
-                Keyword::Fun => "fun",
-                Keyword::If => "if",
-                Keyword::In => "in",
-                Keyword::Include => "include",
-                Keyword::InstanceSizeof => "instance_sizeof",
-                Keyword::IsAQuestion => "is_a?",
-                Keyword::Lib => "lib",
-                Keyword::Macro => "macro",
-                Keyword::Module => "module",
-                Keyword::Next => "next",
-                Keyword::Nil => "nil",
-                Keyword::NilQuestion => "nil?",
-                Keyword::Of => "of",
-                Keyword::Offsetof => "offsetof",
-                Keyword::Out => "out",
-                Keyword::Pointerof => "pointerof",
-                Keyword::Private => "private",
-                Keyword::Protected => "protected",
-                Keyword::Require => "require",
-                Keyword::Rescue => "rescue",
-                Keyword::RespondsToQuestion => "responds_to?",
-                Keyword::Return => "return",
-                Keyword::Select => "select",
-                Keyword::Self_ => "self",
-                Keyword::Sizeof => "sizeof",
-                Keyword::Struct => "struct",
-                Keyword::Super => "super",
-                Keyword::Then => "then",
-                Keyword::True => "true",
-                Keyword::Type => "type",
-                Keyword::Typeof => "typeof",
-                Keyword::Uninitialized => "uninitialized",
-                Keyword::Union => "union",
-                Keyword::Unless => "unless",
-                Keyword::Until => "until",
-                Keyword::Verbatim => "verbatim",
-                Keyword::When => "when",
-                Keyword::While => "while",
-                Keyword::With => "with",
-                Keyword::Yield => "yield",
-            }
-        )
+IntoString!(Keyword);
+
+impl From<&Keyword> for &'static str {
+    fn from(keyword: &Keyword) -> &'static str {
+        match keyword {
+            Keyword::Abstract => "abstract",
+            Keyword::Alias => "alias",
+            Keyword::Annotation => "annotation",
+            Keyword::As => "as",
+            Keyword::AsQuestion => "as?",
+            Keyword::Asm => "asm",
+            Keyword::Begin => "begin",
+            Keyword::Break => "break",
+            Keyword::Case => "case",
+            Keyword::Class => "class",
+            Keyword::Def => "def",
+            Keyword::Do => "do",
+            Keyword::Else => "else",
+            Keyword::Elsif => "elsif",
+            Keyword::End => "end",
+            Keyword::Ensure => "ensure",
+            Keyword::Enum => "enum",
+            Keyword::Extend => "extend",
+            Keyword::False => "false",
+            Keyword::For => "for",
+            Keyword::Fun => "fun",
+            Keyword::If => "if",
+            Keyword::In => "in",
+            Keyword::Include => "include",
+            Keyword::InstanceSizeof => "instance_sizeof",
+            Keyword::IsAQuestion => "is_a?",
+            Keyword::Lib => "lib",
+            Keyword::Macro => "macro",
+            Keyword::Module => "module",
+            Keyword::Next => "next",
+            Keyword::Nil => "nil",
+            Keyword::NilQuestion => "nil?",
+            Keyword::Of => "of",
+            Keyword::Offsetof => "offsetof",
+            Keyword::Out => "out",
+            Keyword::Pointerof => "pointerof",
+            Keyword::Private => "private",
+            Keyword::Protected => "protected",
+            Keyword::Require => "require",
+            Keyword::Rescue => "rescue",
+            Keyword::RespondsToQuestion => "responds_to?",
+            Keyword::Return => "return",
+            Keyword::Select => "select",
+            Keyword::Self_ => "self",
+            Keyword::Sizeof => "sizeof",
+            Keyword::Struct => "struct",
+            Keyword::Super => "super",
+            Keyword::Then => "then",
+            Keyword::True => "true",
+            Keyword::Type => "type",
+            Keyword::Typeof => "typeof",
+            Keyword::Uninitialized => "uninitialized",
+            Keyword::Union => "union",
+            Keyword::Unless => "unless",
+            Keyword::Until => "until",
+            Keyword::Verbatim => "verbatim",
+            Keyword::When => "when",
+            Keyword::While => "while",
+            Keyword::With => "with",
+            Keyword::Yield => "yield",
+        }
     }
 }
 
@@ -179,51 +187,49 @@ pub enum TokenKind {
     Op(Op),
 }
 
-impl fmt::Display for TokenKind {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                TokenKind::Eof => "EOF",
-                TokenKind::Space => "SPACE",
-                TokenKind::Newline => "NEWLINE",
+IntoString!(TokenKind);
 
-                TokenKind::Ident => "IDENT",
-                TokenKind::Const => "CONST",
-                TokenKind::InstanceVar => "INSTANCE_VAR",
-                TokenKind::ClassVar => "CLASS_VAR",
+impl From<&TokenKind> for &'static str {
+    fn from(token_kind: &TokenKind) -> &'static str {
+        match token_kind {
+            TokenKind::Eof => "EOF",
+            TokenKind::Space => "SPACE",
+            TokenKind::Newline => "NEWLINE",
 
-                TokenKind::Char => "CHAR",
-                TokenKind::String => "STRING",
-                TokenKind::Symbol => "SYMBOL",
-                TokenKind::Number => "NUMBER",
+            TokenKind::Ident => "IDENT",
+            TokenKind::Const => "CONST",
+            TokenKind::InstanceVar => "INSTANCE_VAR",
+            TokenKind::ClassVar => "CLASS_VAR",
 
-                TokenKind::Underscore => "UNDERSCORE",
-                TokenKind::Comment => "COMMENT",
+            TokenKind::Char => "CHAR",
+            TokenKind::String => "STRING",
+            TokenKind::Symbol => "SYMBOL",
+            TokenKind::Number => "NUMBER",
 
-                TokenKind::DelimiterStart => "DELIMITER_START",
-                TokenKind::DelimiterEnd => "DELIMITER_END",
+            TokenKind::Underscore => "UNDERSCORE",
+            TokenKind::Comment => "COMMENT",
 
-                TokenKind::StringArrayStart => "STRING_ARRAY_START",
-                TokenKind::InterpolationStart => "INTERPOLATION_START",
-                TokenKind::SymbolArrayStart => "SYMBOL_ARRAY_START",
-                TokenKind::StringArrayEnd => "STRING_ARRAY_END",
+            TokenKind::DelimiterStart => "DELIMITER_START",
+            TokenKind::DelimiterEnd => "DELIMITER_END",
 
-                TokenKind::Global => "GLOBAL",
-                TokenKind::GlobalMatchDataIndex => "GLOBAL_MATCH_DATA_INDEX",
+            TokenKind::StringArrayStart => "STRING_ARRAY_START",
+            TokenKind::InterpolationStart => "INTERPOLATION_START",
+            TokenKind::SymbolArrayStart => "SYMBOL_ARRAY_START",
+            TokenKind::StringArrayEnd => "STRING_ARRAY_END",
 
-                TokenKind::Magic(magic) => return magic.fmt(f),
+            TokenKind::Global => "GLOBAL",
+            TokenKind::GlobalMatchDataIndex => "GLOBAL_MATCH_DATA_INDEX",
 
-                TokenKind::MacroLiteral => "MACRO_LITERAL",
-                TokenKind::MacroExpressionStart => "MACRO_EXPRESSION_START",
-                TokenKind::MacroControlStart => "MACRO_CONTROL_START",
-                TokenKind::MacroVar => "MACRO_VAR",
-                TokenKind::MacroEnd => "MACRO_END",
+            TokenKind::Magic(magic) => magic.into(),
 
-                TokenKind::Op(op) => return op.fmt(f),
-            }
-        )
+            TokenKind::MacroLiteral => "MACRO_LITERAL",
+            TokenKind::MacroExpressionStart => "MACRO_EXPRESSION_START",
+            TokenKind::MacroControlStart => "MACRO_CONTROL_START",
+            TokenKind::MacroVar => "MACRO_VAR",
+            TokenKind::MacroEnd => "MACRO_END",
+
+            TokenKind::Op(op) => op.into(),
+        }
     }
 }
 
@@ -244,18 +250,16 @@ pub enum Magic {
     Line,
 }
 
-impl fmt::Display for Magic {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Magic::Dir => "__DIR__",
-                Magic::EndLine => "__END_LINE__",
-                Magic::File => "__FILE__",
-                Magic::Line => "__LINE__",
-            }
-        )
+IntoString!(Magic);
+
+impl From<&Magic> for &'static str {
+    fn from(magic: &Magic) -> &'static str {
+        match magic {
+            Magic::Dir => "__DIR__",
+            Magic::EndLine => "__END_LINE__",
+            Magic::File => "__FILE__",
+            Magic::Line => "__LINE__",
+        }
     }
 }
 
@@ -337,88 +341,86 @@ pub enum Op {
     Tilde,                  // ~
 }
 
-impl fmt::Display for Op {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Op::Bang => "!",
-                Op::BangEq => "!=",
-                Op::BangTilde => "!~",
-                Op::DollarQuestion => "$?",
-                Op::DollarTilde => "$~",
-                Op::Percent => "%",
-                Op::PercentEq => "%=",
-                Op::PercentRcurly => "%}",
-                Op::Amp => "&",
-                Op::AmpAmp => "&&",
-                Op::AmpAmpEq => "&&=",
-                Op::AmpStar => "&*",
-                Op::AmpStarStar => "&**",
-                Op::AmpStarEq => "&*=",
-                Op::AmpPlus => "&+",
-                Op::AmpPlusEq => "&+=",
-                Op::AmpMinus => "&-",
-                Op::AmpMinusEq => "&-=",
-                Op::AmpEq => "&=",
-                Op::Lparen => "(",
-                Op::Rparen => ")",
-                Op::Star => "*",
-                Op::StarStar => "**",
-                Op::StarStarEq => "**=",
-                Op::StarEq => "*=",
-                Op::Plus => "+",
-                Op::PlusEq => "+=",
-                Op::Comma => ",",
-                Op::Minus => "-",
-                Op::MinusEq => "-=",
-                Op::MinusGt => "->",
-                Op::Period => ".",
-                Op::PeriodPeriod => "..",
-                Op::PeriodPeriodPeriod => "...",
-                Op::Slash => "/",
-                Op::SlashSlash => "//",
-                Op::SlashSlashEq => "//=",
-                Op::SlashEq => "/=",
-                Op::Colon => ":",
-                Op::ColonColon => "::",
-                Op::Semicolon => ";",
-                Op::Lt => "<",
-                Op::LtLt => "<<",
-                Op::LtLtEq => "<<=",
-                Op::LtEq => "<=",
-                Op::LtEqGt => "<=>",
-                Op::Eq => "=",
-                Op::EqEq => "==",
-                Op::EqEqEq => "===",
-                Op::EqGt => "=>",
-                Op::EqTilde => "=~",
-                Op::Gt => ">",
-                Op::GtEq => ">=",
-                Op::GtGt => ">>",
-                Op::GtGtEq => ">>=",
-                Op::Question => "?",
-                Op::AtLsquare => "@[",
-                Op::Lsquare => "[",
-                Op::LsquareRsquare => "[]",
-                Op::LsquareRsquareEq => "[]=",
-                Op::LsquareRsquareQuestion => "[]?",
-                Op::Rsquare => "]",
-                Op::Caret => "^",
-                Op::CaretEq => "^=",
-                Op::Grave => "`",
-                Op::Lcurly => "{",
-                Op::LcurlyPercent => "{%",
-                Op::LcurlyLcurly => "{{",
-                Op::Bar => "|",
-                Op::BarEq => "|=",
-                Op::BarBar => "||",
-                Op::BarBarEq => "||=",
-                Op::Rcurly => "}",
-                Op::Tilde => "~",
-            }
-        )
+IntoString!(Op);
+
+impl From<&Op> for &'static str {
+    fn from(op: &Op) -> &'static str {
+        match op {
+            Op::Bang => "!",
+            Op::BangEq => "!=",
+            Op::BangTilde => "!~",
+            Op::DollarQuestion => "$?",
+            Op::DollarTilde => "$~",
+            Op::Percent => "%",
+            Op::PercentEq => "%=",
+            Op::PercentRcurly => "%}",
+            Op::Amp => "&",
+            Op::AmpAmp => "&&",
+            Op::AmpAmpEq => "&&=",
+            Op::AmpStar => "&*",
+            Op::AmpStarStar => "&**",
+            Op::AmpStarEq => "&*=",
+            Op::AmpPlus => "&+",
+            Op::AmpPlusEq => "&+=",
+            Op::AmpMinus => "&-",
+            Op::AmpMinusEq => "&-=",
+            Op::AmpEq => "&=",
+            Op::Lparen => "(",
+            Op::Rparen => ")",
+            Op::Star => "*",
+            Op::StarStar => "**",
+            Op::StarStarEq => "**=",
+            Op::StarEq => "*=",
+            Op::Plus => "+",
+            Op::PlusEq => "+=",
+            Op::Comma => ",",
+            Op::Minus => "-",
+            Op::MinusEq => "-=",
+            Op::MinusGt => "->",
+            Op::Period => ".",
+            Op::PeriodPeriod => "..",
+            Op::PeriodPeriodPeriod => "...",
+            Op::Slash => "/",
+            Op::SlashSlash => "//",
+            Op::SlashSlashEq => "//=",
+            Op::SlashEq => "/=",
+            Op::Colon => ":",
+            Op::ColonColon => "::",
+            Op::Semicolon => ";",
+            Op::Lt => "<",
+            Op::LtLt => "<<",
+            Op::LtLtEq => "<<=",
+            Op::LtEq => "<=",
+            Op::LtEqGt => "<=>",
+            Op::Eq => "=",
+            Op::EqEq => "==",
+            Op::EqEqEq => "===",
+            Op::EqGt => "=>",
+            Op::EqTilde => "=~",
+            Op::Gt => ">",
+            Op::GtEq => ">=",
+            Op::GtGt => ">>",
+            Op::GtGtEq => ">>=",
+            Op::Question => "?",
+            Op::AtLsquare => "@[",
+            Op::Lsquare => "[",
+            Op::LsquareRsquare => "[]",
+            Op::LsquareRsquareEq => "[]=",
+            Op::LsquareRsquareQuestion => "[]?",
+            Op::Rsquare => "]",
+            Op::Caret => "^",
+            Op::CaretEq => "^=",
+            Op::Grave => "`",
+            Op::Lcurly => "{",
+            Op::LcurlyPercent => "{%",
+            Op::LcurlyLcurly => "{{",
+            Op::Bar => "|",
+            Op::BarEq => "|=",
+            Op::BarBar => "||",
+            Op::BarBarEq => "||=",
+            Op::Rcurly => "}",
+            Op::Tilde => "~",
+        }
     }
 }
 
@@ -506,7 +508,7 @@ impl Default for DelimiterState {
 #[derive(Clone, Debug, PartialEq)]
 pub enum TokenValue {
     Char(char),
-    String(Vec<char>),
+    String(String),
     Keyword(Keyword),
     None,
 }
@@ -517,8 +519,8 @@ impl From<char> for TokenValue {
     }
 }
 
-impl From<Vec<char>> for TokenValue {
-    fn from(string: Vec<char>) -> Self {
+impl From<String> for TokenValue {
+    fn from(string: String) -> Self {
         TokenValue::String(string)
     }
 }
@@ -538,8 +540,8 @@ impl PartialEq<char> for TokenValue {
     }
 }
 
-impl PartialEq<Vec<char>> for TokenValue {
-    fn eq(&self, string: &Vec<char>) -> bool {
+impl PartialEq<str> for TokenValue {
+    fn eq(&self, string: &str) -> bool {
         match self {
             TokenValue::String(value) => value == string,
             _ => false,
@@ -570,13 +572,20 @@ impl TokenValue {
             _ => false,
         }
     }
+
+    pub fn is_some(&self) -> bool {
+        match self {
+            TokenValue::None => false,
+            _ => true,
+        }
+    }
 }
 
 impl fmt::Display for TokenValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             TokenValue::Char(c) => c.fmt(f),
-            TokenValue::String(string) => write!(f, "{}", String::from_iter(string)),
+            TokenValue::String(string) => string.fmt(f),
             TokenValue::Keyword(keyword) => keyword.fmt(f),
             TokenValue::None => write!(f, ""),
         }
@@ -594,7 +603,7 @@ pub struct Token<'s, 'f> {
     pub delimiter_state: DelimiterState,
     pub macro_state: MacroState,
     pub passed_backslash_newline: bool,
-    pub doc_buffer: Option<Vec<char>>,
+    pub doc_buffer: Option<String>,
     pub raw: &'s [char],
     pub start: usize,
     pub invalid_escape: bool,
@@ -649,10 +658,10 @@ impl<'s, 'f> Token<'s, 'f> {
 
 impl<'s, 'f> fmt::Display for Token<'s, 'f> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.value.is_none() {
-            self.kind.fmt(f)
-        } else {
+        if self.value.is_some() {
             self.value.fmt(f)
+        } else {
+            self.kind.fmt(f)
         }
     }
 }
