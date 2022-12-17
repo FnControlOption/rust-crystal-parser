@@ -26,20 +26,61 @@ pub trait AstNode<'f>: fmt::Debug {
 }
 
 pub trait At<'f, L> {
-    fn at(&mut self, location: L);
-    fn at_end(&mut self, location: L);
+    fn at(&mut self, location: L) -> &mut Self;
+    fn at_end(&mut self, end_location: L) -> &mut Self;
 }
 
-impl<'f, T> At<'f, Location<'f>> for T
+impl<'f> At<'f, Option<Rc<Location<'f>>>> for dyn AstNode<'f> + 'f {
+    fn at(&mut self, location: Option<Rc<Location<'f>>>) -> &mut Self {
+        self.set_location(location);
+        self
+    }
+
+    fn at_end(&mut self, end_location: Option<Rc<Location<'f>>>) -> &mut Self {
+        self.set_end_location(end_location);
+        self
+    }
+}
+
+impl<'f, T> At<'f, Option<Rc<Location<'f>>>> for T
 where
     T: AstNode<'f>,
 {
-    fn at(&mut self, location: Location<'f>) {
-        self.set_location(Some(Rc::new(location)));
+    fn at(&mut self, location: Option<Rc<Location<'f>>>) -> &mut Self {
+        self.set_location(location);
+        self
     }
 
-    fn at_end(&mut self, location: Location<'f>) {
-        self.set_location(Some(Rc::new(location)));
+    fn at_end(&mut self, end_location: Option<Rc<Location<'f>>>) -> &mut Self {
+        self.set_end_location(end_location);
+        self
+    }
+}
+
+impl<'f> At<'f, Rc<Location<'f>>> for dyn AstNode<'f> + 'f {
+    fn at(&mut self, location: Rc<Location<'f>>) -> &mut Self {
+        self.at(Some(location));
+        self
+    }
+
+    fn at_end(&mut self, end_location: Rc<Location<'f>>) -> &mut Self {
+        self.at_end(Some(end_location));
+        self
+    }
+}
+
+impl<'f, T> At<'f, Rc<Location<'f>>> for T
+where
+    T: AstNode<'f>,
+{
+    fn at(&mut self, location: Rc<Location<'f>>) -> &mut Self {
+        self.at(Some(location));
+        self
+    }
+
+    fn at_end(&mut self, end_location: Rc<Location<'f>>) -> &mut Self {
+        self.at_end(Some(end_location));
+        self
     }
 }
 
@@ -1094,7 +1135,7 @@ Node!(
     pub block: Option<Box<Block<'f>>>,
     pub block_arg: Option<AstNodeBox<'f>>,
     pub named_args: Option<Vec<Box<NamedArgument<'f>>>>,
-    pub name_location: Option<Location<'f>>,
+    pub name_location: Option<Rc<Location<'f>>>,
     name_size: Option<usize>,
     pub doc: Option<String>,
     pub visibility: Visibility,
@@ -1111,7 +1152,7 @@ impl<'f> Call<'f> {
         block: Option<Box<Block<'f>>>,
         block_arg: Option<AstNodeBox<'f>>,
         named_args: Option<Vec<Box<NamedArgument<'f>>>>,
-        name_location: Option<Location<'f>>,
+        name_location: Option<Rc<Location<'f>>>,
         name_size: Option<usize>,
         doc: Option<String>,
         // visibility: Visibility,
@@ -1173,7 +1214,7 @@ Node!(
     pub then: AstNodeBox<'f>,
     pub else_: AstNodeBox<'f>,
     pub ternary: bool,
-    pub else_location: Option<Location<'f>>,
+    pub else_location: Option<Rc<Location<'f>>>,
 );
 
 impl<'f> If<'f> {
@@ -1182,7 +1223,7 @@ impl<'f> If<'f> {
         then: AstNodeBox<'f>,
         else_: AstNodeBox<'f>,
         ternary: bool,
-        else_location: Option<Location<'f>>,
+        else_location: Option<Rc<Location<'f>>>,
     ) -> Box<Self> {
         new_node! {
             cond: cond,
@@ -1199,7 +1240,7 @@ Node!(
     pub cond: AstNodeBox<'f>,
     pub then: AstNodeBox<'f>,
     pub else_: AstNodeBox<'f>,
-    pub else_location: Option<Location<'f>>,
+    pub else_location: Option<Rc<Location<'f>>>,
 );
 
 impl<'f> Unless<'f> {
@@ -1207,7 +1248,7 @@ impl<'f> Unless<'f> {
         cond: AstNodeBox<'f>,
         then: AstNodeBox<'f>,
         else_: AstNodeBox<'f>,
-        else_location: Option<Location<'f>>,
+        else_location: Option<Rc<Location<'f>>>,
     ) -> Box<Self> {
         new_node! {
             cond: cond,
@@ -1240,7 +1281,7 @@ Node!(
     pub target: AstNodeBox<'f>,
     pub op: String,
     pub value: AstNodeBox<'f>,
-    pub name_location: Option<Location<'f>>,
+    pub name_location: Option<Rc<Location<'f>>>,
 );
 
 impl<'f> OpAssign<'f> {
@@ -1248,7 +1289,7 @@ impl<'f> OpAssign<'f> {
         target: AstNodeBox<'f>,
         op: String,
         value: AstNodeBox<'f>,
-        name_location: Option<Location<'f>>,
+        name_location: Option<Rc<Location<'f>>>,
     ) -> Box<Self> {
         new_node! {
             target: target,
@@ -1407,7 +1448,7 @@ Node!(
     pub block_arg: Option<Box<Arg<'f>>>,
     pub return_type: Option<AstNodeBox<'f>>,
     pub block_arity: Option<usize>,
-    pub name_location: Option<Location<'f>>,
+    pub name_location: Option<Rc<Location<'f>>>,
     pub splat_index: Option<usize>,
     pub doc: Option<String>,
     pub visibility: Visibility,
@@ -1431,7 +1472,7 @@ impl<'f> Def<'f> {
         block_arg: Option<Box<Arg<'f>>>,
         return_type: Option<AstNodeBox<'f>>,
         block_arity: Option<usize>,
-        name_location: Option<Location<'f>>,
+        name_location: Option<Rc<Location<'f>>>,
         splat_index: Option<usize>,
         doc: Option<String>,
         // visibility: Visibility,
@@ -1475,7 +1516,7 @@ Node!(
     pub body: AstNodeBox<'f>,
     pub double_splat: Option<Box<Arg<'f>>>,
     pub block_arg: Option<Box<Arg<'f>>>,
-    pub name_location: Option<Location<'f>>,
+    pub name_location: Option<Rc<Location<'f>>>,
     pub splat_index: Option<usize>,
     pub doc: Option<String>,
     pub visibility: Visibility,
@@ -1488,7 +1529,7 @@ impl<'f> Macro<'f> {
         body: AstNodeBox<'f>,
         double_splat: Option<Box<Arg<'f>>>,
         block_arg: Option<Box<Arg<'f>>>,
-        name_location: Option<Location<'f>>,
+        name_location: Option<Rc<Location<'f>>>,
         splat_index: Option<usize>,
         doc: Option<String>,
         // visibility: Visibility,
@@ -1714,7 +1755,7 @@ Node!(
     pub body: AstNodeBox<'f>,
     pub superclass: Option<AstNodeBox<'f>>,
     pub type_vars: Option<Vec<String>>,
-    pub name_location: Option<Location<'f>>,
+    pub name_location: Option<Rc<Location<'f>>>,
     pub doc: Option<String>,
     pub splat_index: Option<usize>,
     pub abstract_: bool,
@@ -1728,7 +1769,7 @@ impl<'f> ClassDef<'f> {
         body: AstNodeBox<'f>,
         superclass: Option<AstNodeBox<'f>>,
         type_vars: Option<Vec<String>>,
-        name_location: Option<Location<'f>>,
+        name_location: Option<Rc<Location<'f>>>,
         doc: Option<String>,
         splat_index: Option<usize>,
         abstract_: bool,
@@ -1756,7 +1797,7 @@ Node!(
     pub body: AstNodeBox<'f>,
     pub type_vars: Option<Vec<String>>,
     pub splat_index: Option<usize>,
-    pub name_location: Option<Location<'f>>,
+    pub name_location: Option<Rc<Location<'f>>>,
     pub doc: Option<String>,
     pub visibility: Visibility,
 );
@@ -1767,7 +1808,7 @@ impl<'f> ModuleDef<'f> {
         body: AstNodeBox<'f>,
         type_vars: Option<Vec<String>>,
         splat_index: Option<usize>,
-        name_location: Option<Location<'f>>,
+        name_location: Option<Rc<Location<'f>>>,
         doc: Option<String>,
         // visibility: Visibility,
     ) -> Box<Self> {
@@ -1787,14 +1828,14 @@ Node!(
     AnnotationDef;
     pub name: Box<Path<'f>>,
     pub doc: Option<String>,
-    pub name_location: Option<Location<'f>>,
+    pub name_location: Option<Rc<Location<'f>>>,
 );
 
 impl<'f> AnnotationDef<'f> {
     pub fn new(
         name: Box<Path<'f>>,
         doc: Option<String>,
-        name_location: Option<Location<'f>>,
+        name_location: Option<Rc<Location<'f>>>,
     ) -> Box<Self> {
         new_node! {
             name: name,
@@ -1931,8 +1972,8 @@ Node!(
     pub ensure: Option<AstNodeBox<'f>>,
     pub implicit: bool,
     pub suffix: bool,
-    pub else_location: Option<Location<'f>>,
-    pub ensure_location: Option<Location<'f>>,
+    pub else_location: Option<Rc<Location<'f>>>,
+    pub ensure_location: Option<Rc<Location<'f>>>,
 );
 
 impl<'f> ExceptionHandler<'f> {
@@ -1943,8 +1984,8 @@ impl<'f> ExceptionHandler<'f> {
         ensure: Option<AstNodeBox<'f>>,
         // implicit: bool,
         // suffix: bool,
-        else_location: Option<Location<'f>>,
-        ensure_location: Option<Location<'f>>,
+        else_location: Option<Rc<Location<'f>>>,
+        ensure_location: Option<Rc<Location<'f>>>,
     ) -> Box<Self> {
         new_node! {
             body: body,
@@ -2093,7 +2134,7 @@ Node!(
     LibDef;
     pub name: String,
     pub body: AstNodeBox<'f>,
-    pub name_location: Option<Location<'f>>,
+    pub name_location: Option<Rc<Location<'f>>>,
     pub visibility: Visibility,
 );
 
@@ -2101,7 +2142,7 @@ impl<'f> LibDef<'f> {
     pub fn new(
         name: String,
         body: AstNodeBox<'f>,
-        name_location: Option<Location<'f>>,
+        name_location: Option<Rc<Location<'f>>>,
         // visibility: Visibility,
     ) -> Box<Self> {
         new_node! {
@@ -2150,14 +2191,14 @@ Node!(
     TypeDef;
     pub name: String,
     pub type_spec: AstNodeBox<'f>,
-    pub name_location: Option<Location<'f>>,
+    pub name_location: Option<Rc<Location<'f>>>,
 );
 
 impl<'f> TypeDef<'f> {
     pub fn new(
         name: String,
         type_spec: AstNodeBox<'f>,
-        name_location: Option<Location<'f>>,
+        name_location: Option<Rc<Location<'f>>>,
     ) -> Box<Self> {
         new_node! {
             name: name,

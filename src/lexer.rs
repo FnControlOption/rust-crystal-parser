@@ -8,14 +8,14 @@ use std::rc::Rc;
 use std::string::String;
 
 pub struct Lexer<'s, 'f> {
-    wants_regex: bool,
+    pub wants_regex: bool,
     doc_enabled: bool,
     comment_is_doc: bool,
     comments_enabled: bool,
     count_whitespace: bool,
     wants_raw: bool,
-    slash_is_regex: bool,
-    wants_def_or_macro_name: bool,
+    pub slash_is_regex: bool,
+    pub wants_def_or_macro_name: bool,
     wants_symbol: bool,
 
     reader: CharReader<'s>,
@@ -1082,7 +1082,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
         Ok(&self.token)
     }
 
-    fn token_end_location(&mut self) -> Rc<Location<'f>> {
+    pub fn token_end_location(&mut self) -> Rc<Location<'f>> {
         if self.token_end_location.is_none() {
             self.token_end_location = Some(Rc::new(Location::new(
                 self.filename,

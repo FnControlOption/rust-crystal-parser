@@ -6,10 +6,11 @@ use crate::lexer::{Lexer, Raise, RaiseAt};
 use crate::location::Location;
 use crate::token::*;
 use std::collections::HashSet;
+use std::rc::Rc;
 
 struct Unclosed<'f> {
     name: String,
-    location: Location<'f>,
+    location: Rc<Location<'f>>,
 }
 
 pub struct Parser<'s, 'f> {
@@ -29,7 +30,7 @@ pub struct Parser<'s, 'f> {
     is_macro_def: bool,
     assigns_special_var: bool,
     is_constant_assignment: bool,
-    call_args_start_locations: Vec<Location<'f>>,
+    call_args_start_locations: Vec<Rc<Location<'f>>>,
     temp_arg_count: usize,
     in_macro_expression: bool,
     stop_on_yield: usize,
@@ -96,11 +97,92 @@ impl<'s, 'f> Parser<'s, 'f> {
     }
 
     fn parse_expressions_internal(&mut self) -> Result<'f, AstNodeBox<'f>> {
-        todo!("parse_expressions_internal")
+        if self.is_end_token() {
+            return Ok(Nop::new());
+        }
+
+        let exp = self.parse_multi_assign()?;
+
+        self.lexer.slash_is_regex = true;
+        self.lexer.skip_statement_end()?;
+
+        if self.is_end_token() {
+            return Ok(exp);
+        }
+
+        let mut exps = vec![exp];
+
+        loop {
+            exps.push(self.parse_multi_assign()?);
+            self.lexer.skip_statement_end()?;
+            if self.is_end_token() {
+                break;
+            }
+        }
+
+        Ok(Expressions::from(exps))
+    }
+
+    fn parse_multi_assign(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        // todo!("parse_multi_assign");
+        self.parse_expression()
+    }
+
+    fn parse_expression(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        // todo!("parse_expression");
+        self.parse_op_assign()
+    }
+
+    fn parse_op_assign(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        // todo!("parse_op_assign");
+        self.parse_question_colon()
+    }
+
+    fn parse_question_colon(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        // todo!("parse_question_colon");
+        self.parse_range()
+    }
+
+    fn parse_range(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        // todo!("parse_range");
+        self.parse_or()
     }
 
     fn parse_or(&mut self) -> Result<'f, AstNodeBox<'f>> {
-        todo!("parse_or")
+        // todo!("parse_or")
+        self.parse_atomic()
+    }
+
+    fn parse_atomic(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        // todo!("parse_atomic")
+        self.parse_atomic_without_location()
+    }
+
+    fn parse_atomic_without_location(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        let token = &self.lexer.token;
+        match token.kind {
+            TokenKind::Number => {
+                self.lexer.wants_regex = false;
+                self.node_and_next_token(NumberLiteral::new(
+                    token.value.to_string(),
+                    token.number_kind,
+                ))
+            }
+            TokenKind::Char => {
+                if let TokenValue::Char(c) = token.value {
+                    self.node_and_next_token(CharLiteral::new(c))
+                } else {
+                    unreachable!()
+                }
+            }
+            TokenKind::Symbol => {
+                self.node_and_next_token(SymbolLiteral::new(token.value.to_string()))
+            }
+            TokenKind::Global => {
+                self.raise("$global_variables are not supported, use @@class_variables instead")
+            }
+            _ => todo!("parse_atomic_without_location"),
+        }
     }
 
     fn is_multi_assign_target(exp: AstRef<'_, 'f>) -> bool {
@@ -111,7 +193,6 @@ impl<'s, 'f> Parser<'s, 'f> {
             | AstRef::ClassVar(_)
             | AstRef::Global(_)
             | AstRef::Assign(_) => true,
-
             AstRef::Call(call) => {
                 !call.has_parentheses
                     && ((call.args.is_empty() && call.named_args.is_none())
@@ -119,7 +200,6 @@ impl<'s, 'f> Parser<'s, 'f> {
                         || call.name == "[]"
                         || call.name == "[]=")
             }
-
             _ => false,
         }
     }
@@ -146,8 +226,8 @@ impl<'s, 'f> Parser<'s, 'f> {
                     let location = call.location();
                     let end_location = call.end_location();
                     let mut exp = Var::new(call.name);
-                    exp.set_location(location);
-                    exp.set_end_location(end_location);
+                    exp.at(location);
+                    exp.at_end(end_location);
                     exp
                 }
                 Some(obj) => match obj.to_ast_box() {
@@ -179,7 +259,7 @@ impl<'s, 'f> Parser<'s, 'f> {
     fn new_range(
         &mut self,
         exp: AstNodeBox<'f>,
-        location: Location<'f>,
+        location: Rc<Location<'f>>,
         exclusive: bool,
     ) -> Result<'f, Box<RangeLiteral<'f>>> {
         self.check_void_value(exp.as_ref(), &location)?;
@@ -201,7 +281,7 @@ impl<'s, 'f> Parser<'s, 'f> {
         let end_location = right.end_location();
         let mut range = RangeLiteral::new(exp, right, exclusive);
         range.at(location);
-        range.set_end_location(end_location);
+        range.at_end(end_location);
         Ok(range)
     }
 
@@ -321,20 +401,79 @@ impl<'s, 'f> Parser<'s, 'f> {
         value
     }
 
-    fn is_end_token(&mut self) -> bool {
-        todo!("is_end_token")
+    fn node_and_next_token(&mut self, mut node: AstNodeBox<'f>) -> Result<'f, AstNodeBox<'f>> {
+        node.at_end(self.lexer.token_end_location());
+        self.lexer.next_token()?;
+        Ok(node)
     }
 
-    // fn consume_def_or_macro_name(&mut self) -> Result<'f, bool> {
-    //     self.lexer.next_token()?;
-    //     if self.lexer.token.kind == TokenKind::Op(Op::Eq) {
-    //         self.lexer.next_token_skip_space()?;
-    //         Ok(true)
-    //     } else {
-    //         self.lexer.skip_space()?;
-    //         Ok(false)
-    //     }
-    // }
+    fn is_end_token(&mut self) -> bool {
+        let token = &self.lexer.token;
+        if matches!(
+            token.kind,
+            TokenKind::Op(Op::Rcurly)
+                | TokenKind::Op(Op::Rsquare)
+                | TokenKind::Op(Op::PercentRcurly)
+                | TokenKind::Eof
+        ) {
+            return true;
+        }
+
+        if let TokenValue::Keyword(keyword) = token.value {
+            if matches!(
+                keyword,
+                Keyword::Do
+                    | Keyword::End
+                    | Keyword::Else
+                    | Keyword::Elsif
+                    | Keyword::When
+                    | Keyword::In
+                    | Keyword::Rescue
+                    | Keyword::Ensure
+                    | Keyword::Then
+            ) {
+                !self.next_comes_colon_space()
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    fn can_be_assigned(node: AstRef<'_, 'f>) -> bool {
+        match node {
+            AstRef::Var(_)
+            | AstRef::InstanceVar(_)
+            | AstRef::ClassVar(_)
+            | AstRef::Path(_)
+            | AstRef::Global(_)
+            | AstRef::Underscore(_) => true,
+            AstRef::Call(call) => {
+                (call.obj.is_none() && call.args.is_empty() && call.block.is_none())
+                    || call.name == "[]"
+            }
+            _ => false,
+        }
+    }
+
+    #[rustfmt::skip]
+    const DEF_OR_MACRO_CHECK1: &[TokenKind] = &[
+        TokenKind::Ident, TokenKind::Const, TokenKind::Op(Op::Grave),
+        TokenKind::Op(Op::LtLt), TokenKind::Op(Op::Lt), TokenKind::Op(Op::LtEq), TokenKind::Op(Op::EqEq), TokenKind::Op(Op::EqEqEq), TokenKind::Op(Op::BangEq), TokenKind::Op(Op::EqTilde),
+        TokenKind::Op(Op::BangTilde), TokenKind::Op(Op::GtGt), TokenKind::Op(Op::Gt), TokenKind::Op(Op::GtEq), TokenKind::Op(Op::Plus), TokenKind::Op(Op::Minus), TokenKind::Op(Op::Star), TokenKind::Op(Op::Slash),
+        TokenKind::Op(Op::SlashSlash), TokenKind::Op(Op::Bang), TokenKind::Op(Op::Tilde), TokenKind::Op(Op::Percent), TokenKind::Op(Op::Amp), TokenKind::Op(Op::Bar), TokenKind::Op(Op::Caret), TokenKind::Op(Op::StarStar),
+        TokenKind::Op(Op::LsquareRsquare), TokenKind::Op(Op::LsquareRsquareEq), TokenKind::Op(Op::LsquareRsquareQuestion), TokenKind::Op(Op::LtEqGt),
+        TokenKind::Op(Op::AmpPlus), TokenKind::Op(Op::AmpMinus), TokenKind::Op(Op::AmpStar), TokenKind::Op(Op::AmpStarStar),
+    ];
+
+    fn consume_def_or_macro_name(&mut self) -> Result<'f, String> {
+        self.lexer.wants_def_or_macro_name = true;
+        self.lexer.next_token_skip_space_or_newline()?;
+        self.check_any(Self::DEF_OR_MACRO_CHECK1)?;
+        self.lexer.wants_def_or_macro_name = false;
+        Ok(self.lexer.token.to_string())
+    }
 
     fn consume_def_equals_sign_skip_space(&mut self) -> Result<'f, bool> {
         self.lexer.next_token()?;
@@ -510,7 +649,7 @@ impl<'s, 'f> Parser<'s, 'f> {
         if let Some(unclosed) = self.unclosed_stack.last() {
             return self.raise_at(
                 format!("unterminated {}", &unclosed.name),
-                &unclosed.location,
+                unclosed.location.as_ref(),
             );
         }
 
