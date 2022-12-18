@@ -5,6 +5,8 @@ use std::rc::Rc;
 
 pub type AstNodeBox<'f> = Box<dyn AstNode<'f> + 'f>;
 
+pub type AstNodeRc<'f> = Rc<dyn AstNode<'f> + 'f>;
+
 pub type AstNodeRef<'a, 'f> = &'a dyn AstNode<'f>;
 
 pub trait AstNode<'f>: fmt::Debug {
@@ -22,7 +24,7 @@ pub trait AstNode<'f>: fmt::Debug {
 
     fn to_ast_box(self: Box<Self>) -> AstBox<'f>;
 
-    fn to_ast_ref<'a>(&'a self) -> AstRef<'a, 'f>;
+    fn to_ast_ref(&self) -> AstRef<'_, 'f>;
 }
 
 pub trait At<'f, L> {
@@ -84,19 +86,21 @@ where
     }
 }
 
-// impl<'f, T> At<'f, AstNodeRef<'_, 'f>> for T
-// where
-//     T: AstNode<'f>,
-// {
-//     fn at(&mut self, node: AstNodeRef<'_, 'f>) {
-//         self.set_location(node.location());
-//         self.set_end_location(node.end_location());
-//     }
+impl<'f, T> At<'f, AstNodeRef<'_, 'f>> for T
+where
+    T: AstNode<'f>,
+{
+    fn at(&mut self, node: AstNodeRef<'_, 'f>) -> &mut Self {
+        self.set_location(node.location());
+        self.set_end_location(node.end_location());
+        self
+    }
 
-//     fn at_end(&mut self, node: AstNodeRef<'_, 'f>) {
-//         self.set_end_location(node.end_location());
-//     }
-// }
+    fn at_end(&mut self, node: AstNodeRef<'_, 'f>) -> &mut Self {
+        self.set_end_location(node.end_location());
+        self
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum AstTag {
@@ -627,7 +631,7 @@ macro_rules! Node {
                 AstBox::$name(self)
             }
 
-            fn to_ast_ref<'a>(&'a self) -> AstRef<'a, 'f> {
+            fn to_ast_ref(&self) -> AstRef<'_, 'f> {
                 AstRef::$name(self)
             }
         }
@@ -1735,17 +1739,34 @@ Node!(
     pub visibility: Visibility,
 );
 
-impl<'f> Path<'f> {
-    pub fn new(
-        names: Vec<String>,
-        global: bool,
-        // visibility: Visibility,
-    ) -> Box<Self> {
+pub trait PathNew<'f, T> {
+    fn new(names: T) -> Box<Path<'f>>;
+    fn global(names: T) -> Box<Path<'f>>;
+}
+
+impl<'f> PathNew<'f, Vec<String>> for Path<'f> {
+    fn new(names: Vec<String>) -> Box<Path<'f>> {
         new_node! {
             names: names,
-            global: global,
+            global: false,
             visibility: Visibility::Public,
         }
+    }
+
+    fn global(names: Vec<String>) -> Box<Path<'f>> {
+        let mut path = Path::new(names);
+        path.global = true;
+        path
+    }
+}
+
+impl<'f, const N: usize> PathNew<'f, [&str; N]> for Path<'f> {
+    fn new(names: [&str; N]) -> Box<Path<'f>> {
+        Path::new(Vec::from_iter(names.iter().map(|s| s.to_string())))
+    }
+
+    fn global(names: [&str; N]) -> Box<Path<'f>> {
+        Path::global(Vec::from_iter(names.iter().map(|s| s.to_string())))
     }
 }
 
@@ -1884,17 +1905,12 @@ Node!(
 );
 
 impl<'f> Generic<'f> {
-    pub fn new(
-        name: AstNodeBox<'f>,
-        type_vars: Vec<AstNodeBox<'f>>,
-        named_args: Option<Vec<Box<NamedArgument<'f>>>>,
-        suffix: GenericSuffix,
-    ) -> Box<Self> {
+    pub fn new(name: AstNodeBox<'f>, type_vars: Vec<AstNodeBox<'f>>) -> Box<Self> {
         new_node! {
             name: name,
             type_vars: type_vars,
-            named_args: named_args,
-            suffix: suffix,
+            named_args: None,
+            suffix: GenericSuffix::None,
         }
     }
 }
@@ -2534,6 +2550,35 @@ pub enum Visibility {
     Protected,
     Private,
 }
+
+pub trait Visible {
+    fn visibility(&self) -> Visibility;
+    fn set_visibility(&mut self, visibility: Visibility);
+}
+
+macro_rules! Visible {
+    ($name:ident) => {
+        impl<'f> Visible for $name<'f> {
+            fn visibility(&self) -> Visibility {
+                self.visibility
+            }
+
+            fn set_visibility(&mut self, visibility: Visibility) {
+                self.visibility = visibility;
+            }
+        }
+    };
+}
+
+Visible!(Call);
+Visible!(Def);
+Visible!(Macro);
+Visible!(Path);
+Visible!(ClassDef);
+Visible!(ModuleDef);
+Visible!(LibDef);
+Visible!(EnumDef);
+Visible!(Alias);
 
 #[test]
 fn it_works() {

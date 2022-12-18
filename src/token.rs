@@ -540,8 +540,8 @@ impl PartialEq<char> for TokenValue {
     }
 }
 
-impl PartialEq<str> for TokenValue {
-    fn eq(&self, string: &str) -> bool {
+impl PartialEq<&str> for TokenValue {
+    fn eq(&self, string: &&str) -> bool {
         match self {
             TokenValue::String(value) => value == string,
             _ => false,

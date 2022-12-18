@@ -1264,6 +1264,48 @@ impl<'s, 'f> Lexer<'s, 'f> {
         self.set_token_raw_from_start(start);
     }
 
+    pub fn lookahead<F, T>(&mut self, f: F) -> Option<T>
+    where
+        F: FnMut(&mut Self) -> Option<T>,
+    {
+        self.lookahead2(false, f)
+    }
+
+    pub fn lookahead2<F, T>(&mut self, preserve_token_on_fail: bool, mut f: F) -> Option<T>
+    where
+        F: FnMut(&mut Self) -> Option<T>,
+    {
+        let old_pos = self.current_pos();
+        let old_line = self.line_number;
+        let old_column = self.column_number;
+        if preserve_token_on_fail {
+            self.temp_token.clone_from(&self.token);
+        }
+
+        let result = f(self);
+        if result.is_none() {
+            self.set_current_pos(old_pos);
+            self.line_number = old_line;
+            self.column_number = old_column;
+            if preserve_token_on_fail {
+                self.token.clone_from(&self.temp_token);
+            }
+        }
+        result
+    }
+
+    pub fn peek_ahead<F, T>(&mut self, mut f: F) -> T
+    where
+        F: FnMut(&mut Self) -> T,
+    {
+        let mut result = unsafe { std::mem::MaybeUninit::uninit().assume_init() };
+        self.lookahead2(true, |l| {
+            result = f(l);
+            Option::<()>::None
+        });
+        result
+    }
+
     fn consume_symbol(&mut self) -> Result<'f, ()> {
         match self.current_char() {
             ':' => self.next_char2(Op(ColonColon)),
@@ -1559,10 +1601,7 @@ impl<'s, 'f> Lexer<'s, 'f> {
     }
 
     fn is_ident(name: &str) -> bool {
-        name.chars()
-            .next()
-            .map(|c| Self::is_ident_start(c))
-            .unwrap_or(false)
+        name.chars().next().map_or(false, Self::is_ident_start)
     }
 
     pub fn is_setter(name: &str) -> bool {

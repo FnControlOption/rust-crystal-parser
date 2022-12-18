@@ -21,6 +21,7 @@ pub struct Parser<'s, 'f> {
     type_nest: usize,
     _wants_doc: bool,
     block_arg_name: Option<String>,
+
     var_scopes: Vec<HashSet<String>>,
     unclosed_stack: Vec<Unclosed<'f>>,
     calls_super: bool,
@@ -41,6 +42,8 @@ pub struct Parser<'s, 'f> {
     inside_interpolation: bool,
     stop_on_do: bool,
     assigned_vars: Vec<String>,
+
+    block_arity: Option<usize>,
 }
 
 impl<'s, 'f> Parser<'s, 'f> {
@@ -73,6 +76,7 @@ impl<'s, 'f> Parser<'s, 'f> {
             inside_interpolation: false,
             stop_on_do: false,
             assigned_vars: Vec::new(),
+            block_arity: None,
         }
     }
 
@@ -126,63 +130,6 @@ impl<'s, 'f> Parser<'s, 'f> {
     fn parse_multi_assign(&mut self) -> Result<'f, AstNodeBox<'f>> {
         // todo!("parse_multi_assign");
         self.parse_expression()
-    }
-
-    fn parse_expression(&mut self) -> Result<'f, AstNodeBox<'f>> {
-        // todo!("parse_expression");
-        self.parse_op_assign()
-    }
-
-    fn parse_op_assign(&mut self) -> Result<'f, AstNodeBox<'f>> {
-        // todo!("parse_op_assign");
-        self.parse_question_colon()
-    }
-
-    fn parse_question_colon(&mut self) -> Result<'f, AstNodeBox<'f>> {
-        // todo!("parse_question_colon");
-        self.parse_range()
-    }
-
-    fn parse_range(&mut self) -> Result<'f, AstNodeBox<'f>> {
-        // todo!("parse_range");
-        self.parse_or()
-    }
-
-    fn parse_or(&mut self) -> Result<'f, AstNodeBox<'f>> {
-        // todo!("parse_or")
-        self.parse_atomic()
-    }
-
-    fn parse_atomic(&mut self) -> Result<'f, AstNodeBox<'f>> {
-        // todo!("parse_atomic")
-        self.parse_atomic_without_location()
-    }
-
-    fn parse_atomic_without_location(&mut self) -> Result<'f, AstNodeBox<'f>> {
-        let token = &self.lexer.token;
-        match token.kind {
-            TokenKind::Number => {
-                self.lexer.wants_regex = false;
-                self.node_and_next_token(NumberLiteral::new(
-                    token.value.to_string(),
-                    token.number_kind,
-                ))
-            }
-            TokenKind::Char => {
-                if let TokenValue::Char(c) = token.value {
-                    self.node_and_next_token(CharLiteral::new(c))
-                } else {
-                    unreachable!()
-                }
-            }
-            TokenKind::Symbol => {
-                self.node_and_next_token(SymbolLiteral::new(token.value.to_string()))
-            }
-            TokenKind::Global => {
-                self.raise("$global_variables are not supported, use @@class_variables instead")
-            }
-            _ => todo!("parse_atomic_without_location"),
-        }
     }
 
     fn is_multi_assign_target(exp: AstRef<'_, 'f>) -> bool {
@@ -256,6 +203,26 @@ impl<'s, 'f> Parser<'s, 'f> {
         Ok(exp)
     }
 
+    fn parse_expression(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        // todo!("parse_expression");
+        self.parse_op_assign()
+    }
+
+    fn parse_op_assign(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        // todo!("parse_op_assign");
+        self.parse_question_colon()
+    }
+
+    fn parse_question_colon(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        // todo!("parse_question_colon");
+        self.parse_range()
+    }
+
+    fn parse_range(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        // todo!("parse_range");
+        self.parse_or()
+    }
+
     fn new_range(
         &mut self,
         exp: AstNodeBox<'f>,
@@ -283,6 +250,43 @@ impl<'s, 'f> Parser<'s, 'f> {
         range.at(location);
         range.at_end(end_location);
         Ok(range)
+    }
+
+    fn parse_or(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        // todo!("parse_or")
+        self.parse_atomic()
+    }
+
+    fn parse_atomic(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        // todo!("parse_atomic")
+        self.parse_atomic_without_location()
+    }
+
+    fn parse_atomic_without_location(&mut self) -> Result<'f, AstNodeBox<'f>> {
+        let token = &self.lexer.token;
+        match token.kind {
+            TokenKind::Number => {
+                self.lexer.wants_regex = false;
+                self.node_and_next_token(NumberLiteral::new(
+                    token.value.to_string(),
+                    token.number_kind,
+                ))
+            }
+            TokenKind::Char => {
+                if let TokenValue::Char(c) = token.value {
+                    self.node_and_next_token(CharLiteral::new(c))
+                } else {
+                    unreachable!()
+                }
+            }
+            TokenKind::Symbol => {
+                self.node_and_next_token(SymbolLiteral::new(token.value.to_string()))
+            }
+            TokenKind::Global => {
+                self.raise("$global_variables are not supported, use @@class_variables instead")
+            }
+            _ => todo!("parse_atomic_without_location"),
+        }
     }
 
     fn next_comes_colon_space(&mut self) -> bool {
@@ -369,10 +373,10 @@ impl<'s, 'f> Parser<'s, 'f> {
         }
     }
 
-    fn is_named_tuple_start(&self) -> bool {
-        matches!(self.lexer.token.kind, TokenKind::Ident | TokenKind::Const)
-            && self.lexer.current_char() == ':'
-            && self.lexer.peek_next_char() != ':'
+    fn is_named_tuple_start(lexer: &mut Lexer<'s, 'f>) -> bool {
+        matches!(lexer.token.kind, TokenKind::Ident | TokenKind::Const)
+            && lexer.current_char() == ':'
+            && lexer.peek_next_char() != ':'
     }
 
     fn is_string_literal_start(&self) -> bool {
@@ -381,6 +385,184 @@ impl<'s, 'f> Parser<'s, 'f> {
                 self.lexer.token.delimiter_state.value,
                 DelimiterValue::String(_)
             )
+    }
+
+    /*
+    fn add_when_exp(
+        &self,
+        when_exps: &mut Vec<AstNodeRc<'f>>,
+        exp: AstNodeRc<'f>,
+    ) -> Result<'f, ()> {
+        if !Self::is_when_exp_constant(exp.to_ast_ref()) {
+            return Ok(());
+        }
+
+        if when_exps.contains(&exp) {
+            return self.raise_at(
+                format!("duplicate when {exp} in case"),
+                exp.location().unwrap().as_ref(),
+            );
+        }
+
+        when_exps.push(exp);
+        Ok(())
+    }
+    */
+
+    fn is_when_exp_constant(exp: AstRef<'_, 'f>) -> bool {
+        match exp {
+            #[rustfmt::skip]
+            AstRef::NilLiteral(_) | AstRef::BoolLiteral(_) | AstRef::CharLiteral(_) | AstRef::NumberLiteral(_) |
+            AstRef::StringLiteral(_) | AstRef::SymbolLiteral(_) | AstRef::Path(_)
+            => true,
+            AstRef::ArrayLiteral(exp) => exp
+                .elements
+                .iter()
+                .all(|e| Self::is_when_exp_constant(e.to_ast_ref())),
+            AstRef::TupleLiteral(exp) => exp
+                .elements
+                .iter()
+                .all(|e| Self::is_when_exp_constant(e.to_ast_ref())),
+            AstRef::RegexLiteral(exp) => Self::is_when_exp_constant(exp.value.to_ast_ref()),
+            AstRef::RangeLiteral(exp) => {
+                Self::is_when_exp_constant(exp.from.to_ast_ref())
+                    && Self::is_when_exp_constant(exp.to.to_ast_ref())
+            }
+            _ => false,
+        }
+    }
+
+    fn when_expression_end(&mut self) -> Result<'f, bool> {
+        self.lexer.slash_is_regex = true;
+        if self.lexer.token.is_keyword(Keyword::Then) {
+            self.lexer.next_token_skip_space_or_newline()?;
+            return Ok(true);
+        } else {
+            match self.lexer.token.kind {
+                TokenKind::Op(Op::Comma) => {
+                    self.lexer.next_token_skip_space_or_newline()?;
+                }
+                TokenKind::Newline => {
+                    self.lexer.skip_space_or_newline()?;
+                    return Ok(true);
+                }
+                TokenKind::Op(Op::Semicolon) => {
+                    self.lexer.skip_statement_end()?;
+                    return Ok(true);
+                }
+                _ => {
+                    return self.unexpected_token2(Some("expecting ',', ';' or '\\n'"));
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    fn is_valid_select_when(node: AstRef<'_, 'f>) -> bool {
+        match node {
+            AstRef::Assign(assign) => assign.value.tag() == AstTag::Call,
+            AstRef::Call(_) => true,
+            _ => false,
+        }
+    }
+
+    fn prepare_parse_def(&mut self) {
+        self.calls_super = false;
+        self.calls_initialize = false;
+        self.calls_previous_def = false;
+        self.uses_block_arg = false;
+        self.block_arg_name = None;
+        self.assigns_special_var = false;
+        self.is_macro_def = false;
+    }
+
+    fn check_valid_def_name(&self) -> Result<'f, ()> {
+        let token = &self.lexer.token;
+        if let TokenValue::Keyword(keyword) = token.value {
+            if matches!(
+                keyword,
+                Keyword::IsAQuestion
+                    | Keyword::As
+                    | Keyword::AsQuestion
+                    | Keyword::RespondsToQuestion
+                    | Keyword::NilQuestion
+            ) {
+                return self.raise_at(
+                    format!("'{keyword}' is a pseudo-method and can't be redefined"),
+                    token,
+                );
+            }
+        }
+        Ok(())
+    }
+
+    fn check_valid_def_op_name(&self) -> Result<'f, ()> {
+        let token = &self.lexer.token;
+        if token.kind == TokenKind::Op(Op::Bang) {
+            return self.raise_at("'!' is a pseudo-method and can't be redefined", token);
+        }
+        Ok(())
+    }
+
+    fn compute_block_arg_yields(&mut self, block_arg: &Arg<'f>) {
+        if let Some(restriction) = &block_arg.restriction {
+            if let AstRef::ProcNotation(restriction) = restriction.to_ast_ref() {
+                self.block_arity = Some(restriction.inputs.as_ref().map_or(0, Vec::len));
+                return;
+            }
+        }
+        self.block_arity = Some(0);
+    }
+
+    fn is_invalid_internal_name(keyword: &TokenValue) -> bool {
+        match keyword {
+            TokenValue::Keyword(keyword) => match keyword {
+                #[rustfmt::skip]
+                Keyword::Begin | Keyword::Nil | Keyword::True | Keyword::False | Keyword::Yield | Keyword::With | Keyword::Abstract |
+                Keyword::Def | Keyword::Macro | Keyword::Require | Keyword::Case | Keyword::Select | Keyword::If | Keyword::Unless | Keyword::Include |
+                Keyword::Extend | Keyword::Class | Keyword::Struct | Keyword::Module | Keyword::Enum | Keyword::While | Keyword::Until | Keyword::Return |
+                Keyword::Next | Keyword::Break | Keyword::Lib | Keyword::Fun | Keyword::Alias | Keyword::Pointerof | Keyword::Sizeof | Keyword::Offsetof |
+                Keyword::InstanceSizeof | Keyword::Typeof | Keyword::Private | Keyword::Protected | Keyword::Asm | Keyword::Out |
+                Keyword::Self_ | Keyword::In | Keyword::End
+                => true,
+                _ => false,
+            },
+            TokenValue::String(keyword) => match keyword.as_ref() {
+                #[rustfmt::skip]
+                "begin" | "nil" | "true" | "false" | "yield" | "with" | "abstract" |
+                "def" | "macro" | "require" | "case" | "select" | "if" | "unless" | "include" |
+                "extend" | "class" | "struct" | "module" | "enum" | "while" | "until" | "return" |
+                "next" | "break" | "lib" | "fun" | "alias" | "pointerof" | "sizeof" | "offsetof" |
+                "instance_sizeof" | "typeof" | "private" | "protected" | "asm" | "out" |
+                "self" | "in" | "end"
+                => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    fn set_visibility<T>(&self, mut node: Box<T>) -> Box<T>
+    where
+        T: Visible,
+    {
+        if let Some(visibility) = self.visibility {
+            node.set_visibility(visibility);
+        }
+        node
+    }
+
+    fn next_comes_plus_or_minus(&mut self) -> bool {
+        let pos = self.lexer.current_pos();
+        while self.lexer.current_char().is_ascii_whitespace() {
+            self.lexer.next_char_no_column_increment();
+        }
+        let comes_plus_or_minus = match self.lexer.current_char() {
+            '+' | '-' => true,
+            _ => false,
+        };
+        self.lexer.set_current_pos(pos);
+        comes_plus_or_minus
     }
 
     fn preserve_stop_on_do<F, T>(&mut self, f: F) -> T
@@ -399,6 +581,157 @@ impl<'s, 'f> Parser<'s, 'f> {
         let value = f(self);
         self.stop_on_do = old_stop_on_do;
         value
+    }
+
+    fn make_nilable_type(type_: AstNodeBox<'f>) -> Box<Union<'f>> {
+        let mut union = Union::new(Vec::new());
+        union.at(type_.as_ref());
+        let mut nil = Path::global(["Nil"]);
+        nil.at(type_.as_ref());
+        union.types.push(type_);
+        union.types.push(nil);
+        union
+    }
+
+    fn make_nilable_expression(type_: AstNodeBox<'f>) -> Box<Generic<'f>> {
+        let mut name = Path::global(["Union"]);
+        name.at(type_.as_ref());
+        let mut generic = Generic::new(name, Vec::new());
+        generic.at(type_.as_ref());
+        let mut nil = Path::global(["Nil"]);
+        nil.at(type_.as_ref());
+        generic.type_vars.push(type_);
+        generic.type_vars.push(nil);
+        generic.suffix = GenericSuffix::Question;
+        generic
+    }
+
+    fn make_pointer_type(type_: AstNodeBox<'f>) -> Box<Generic<'f>> {
+        let mut name = Path::global(["Pointer"]);
+        name.at(type_.as_ref());
+        let mut generic = Generic::new(name, Vec::new());
+        generic.at(type_.as_ref());
+        generic.type_vars.push(type_);
+        generic.suffix = GenericSuffix::Asterisk;
+        generic
+    }
+
+    fn make_static_array_type(type_: AstNodeBox<'f>, size: AstNodeBox<'f>) -> Box<Generic<'f>> {
+        let mut name = Path::global(["StaticArray"]);
+        name.at(type_.as_ref());
+        let mut generic = Generic::new(name, Vec::new());
+        generic.at(type_.as_ref());
+        generic.type_vars.push(type_);
+        generic.type_vars.push(size);
+        generic.suffix = GenericSuffix::Bracket;
+        generic
+    }
+
+    fn make_tuple_type(types: Vec<AstNodeBox<'f>>) -> Box<Generic<'f>> {
+        Generic::new(Path::global(["Tuple"]), types)
+    }
+
+    fn make_named_tuple_type(named_args: Vec<Box<NamedArgument<'f>>>) -> Box<Generic<'f>> {
+        let mut generic = Generic::new(Path::global(["NamedTuple"]), Vec::new());
+        generic.named_args = Some(named_args);
+        generic
+    }
+
+    fn is_type_start(&mut self, consume_newlines: bool) -> bool {
+        self.lexer
+            .peek_ahead(|lexer| {
+                if consume_newlines {
+                    lexer.next_token_skip_space_or_newline()?;
+                } else {
+                    lexer.next_token_skip_space()?;
+                }
+
+                Self::type_start(lexer)
+            })
+            .unwrap_or(false)
+    }
+
+    fn type_start(lexer: &mut Lexer<'s, 'f>) -> Result<'f, bool> {
+        while matches!(
+            lexer.token.kind,
+            TokenKind::Op(Op::Lparen) | TokenKind::Op(Op::Lcurly)
+        ) {
+            lexer.next_token_skip_space_or_newline()?;
+        }
+
+        match lexer.token.kind {
+            TokenKind::Ident => {
+                if Self::is_named_tuple_start(lexer) {
+                    return Ok(false);
+                }
+                if lexer.token.value == Keyword::Typeof {
+                    Ok(true)
+                } else if lexer.token.value == Keyword::Self_ || lexer.token.value == "self?" {
+                    lexer.next_token_skip_space()?;
+                    Self::delimiter_or_type_suffix(lexer)
+                } else {
+                    Ok(false)
+                }
+            }
+            TokenKind::Const => {
+                if Self::is_named_tuple_start(lexer) {
+                    return Ok(false);
+                }
+                Self::type_path_start(lexer)
+            }
+            TokenKind::Op(Op::ColonColon) => {
+                lexer.next_token()?;
+                Self::type_path_start(lexer)
+            }
+            TokenKind::Underscore | TokenKind::Op(Op::MinusGt) => Ok(true),
+            TokenKind::Op(Op::Star) => {
+                lexer.next_token_skip_space_or_newline()?;
+                Self::type_path_start(lexer)
+            }
+            _ => Ok(false),
+        }
+    }
+
+    fn type_path_start(lexer: &mut Lexer<'s, 'f>) -> Result<'f, bool> {
+        while lexer.token.kind == TokenKind::Const {
+            lexer.next_token()?;
+            if lexer.token.kind != TokenKind::Op(Op::ColonColon) {
+                break;
+            }
+            lexer.next_token_skip_space_or_newline()?;
+        }
+
+        lexer.skip_space()?;
+        Self::delimiter_or_type_suffix(lexer)
+    }
+
+    fn delimiter_or_type_suffix(lexer: &mut Lexer<'s, 'f>) -> Result<'f, bool> {
+        match lexer.token.kind {
+            TokenKind::Op(Op::Period) => {
+                lexer.next_token_skip_space_or_newline()?;
+                Ok(lexer.token.is_keyword(Keyword::Class))
+            }
+            TokenKind::Op(Op::Question) | TokenKind::Op(Op::Star) | TokenKind::Op(Op::StarStar) => {
+                lexer.next_token_skip_space()?;
+                Self::delimiter_or_type_suffix(lexer)
+            }
+            TokenKind::Op(Op::MinusGt)
+            | TokenKind::Op(Op::Bar)
+            | TokenKind::Op(Op::Comma)
+            | TokenKind::Op(Op::EqGt)
+            | TokenKind::Newline
+            | TokenKind::Eof
+            | TokenKind::Op(Op::Eq)
+            | TokenKind::Op(Op::Semicolon)
+            | TokenKind::Op(Op::Lparen)
+            | TokenKind::Op(Op::Rparen)
+            | TokenKind::Op(Op::Lsquare)
+            | TokenKind::Op(Op::Rsquare) => {
+                // -> | , => \n EOF = ; ( ) [ ]
+                Ok(true)
+            }
+            _ => Ok(false),
+        }
     }
 
     fn node_and_next_token(&mut self, mut node: AstNodeBox<'f>) -> Result<'f, AstNodeBox<'f>> {
